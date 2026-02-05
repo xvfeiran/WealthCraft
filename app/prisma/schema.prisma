@@ -1,0 +1,160 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String         @id @default(uuid())
+  email                 String         @unique
+  passwordHash          String
+  baseCurrency          String         @default("CNY")
+  notificationThreshold Float          @default(0.05)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  portfolios            Portfolio[]
+  notifications         Notification[]
+}
+
+model Portfolio {
+  id               String           @id @default(uuid())
+  userId           String
+  name             String
+  targetAllocation String           @default("{}") // JSON string for asset type ratios
+  riskLevel        String           @default("MEDIUM") // LOW, MEDIUM, HIGH
+  baseCurrency     String           @default("CNY")
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assets           Asset[]
+  recommendations  Recommendation[]
+
+  @@index([userId])
+}
+
+model Asset {
+  id              String           @id @default(uuid())
+  portfolioId     String
+  symbol          String
+  name            String
+  type            String           // CN_STOCK_FUND, US_STOCK_FUND, BOND, CRYPTO
+  currency        String           @default("CNY")
+  quantity        Float            @default(0)
+  costPrice       Float            @default(0)
+  currentPrice    Float            @default(0)
+  source          String           @default("MANUAL") // SYNC, MANUAL
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  portfolio       Portfolio        @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  transactions    Transaction[]
+  syncLogs        SyncLog[]
+  recommendations Recommendation[]
+
+  @@unique([portfolioId, symbol])
+  @@index([portfolioId])
+}
+
+model Transaction {
+  id        String   @id @default(uuid())
+  assetId   String
+  type      String   // BUY, SELL, DIVIDEND, FEE
+  quantity  Float
+  price     Float
+  fee       Float    @default(0)
+  timestamp DateTime @default(now())
+  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+}
+
+model Recommendation {
+  id                String    @id @default(uuid())
+  portfolioId       String
+  assetId           String
+  action            String    // BUY, SELL
+  suggestedQuantity Float
+  reason            String
+  createdAt         DateTime  @default(now())
+  portfolio         Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  asset             Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([portfolioId])
+}
+
+model Notification {
+  id             String   @id @default(uuid())
+  userId         String
+  type           String   // RATIO_DEVIATION, PRICE_ALERT
+  triggeredValue Float
+  message        String
+  readStatus     Boolean  @default(false)
+  timestamp      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model SyncLog {
+  id        String   @id @default(uuid())
+  assetId   String
+  oldPrice  Float
+  newPrice  Float
+  source    String
+  timestamp DateTime @default(now())
+  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+}
+
+model ExchangeRate {
+  id           String   @id @default(uuid())
+  fromCurrency String
+  toCurrency   String
+  rate         Float
+  updatedAt    DateTime @updatedAt
+
+  @@unique([fromCurrency, toCurrency])
+}
+
+// 投资标的主数据 - 从第三方API同步
+model MarketInstrument {
+  id           String   @id @default(uuid())
+  symbol       String   // 股票/基金代码
+  name         String   // 名称
+  market       String   // 交易所: SSE(上交所), SZSE(深交所), NASDAQ, NYSE
+  type         String   // 类型: STOCK, FUND, ETF, BOND
+  currency     String   @default("CNY")
+  lastPrice    Float    @default(0)
+  change       Float    @default(0)    // 涨跌额
+  changePercent Float   @default(0)    // 涨跌幅
+  volume       Float    @default(0)    // 成交量
+  marketCap    Float    @default(0)    // 市值
+  sector       String?  // 行业
+  industry     String?  // 细分行业
+  country      String?  // 国家
+  isActive     Boolean  @default(true) // 是否交易中
+  lastSyncAt   DateTime @default(now()) // 最后同步时间
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([symbol, market])
+  @@index([market])
+  @@index([name])
+  @@index([symbol])
+}
+
+// 同步任务日志
+model SyncTask {
+  id          String   @id @default(uuid())
+  market      String   // 交易所
+  status      String   // PENDING, RUNNING, SUCCESS, FAILED
+  totalCount  Int      @default(0)
+  successCount Int     @default(0)
+  failedCount Int      @default(0)
+  errorMessage String?
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+}
