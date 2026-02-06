@@ -81,7 +81,7 @@ export interface MarketStock {
   volume?: number;
   marketCap?: number;
   currency: string;
-  market: 'NASDAQ' | 'NYSE' | 'AMEX' | 'SSE';
+  market: 'NASDAQ' | 'NYSE' | 'AMEX' | 'US_ETF' | 'SSE' | 'SSE_FUND' | 'SSE_BOND';
 }
 
 export interface ApiResponse<T = any> {
@@ -102,7 +102,7 @@ export interface MarketInstrument {
   id: string;
   symbol: string;
   name: string;
-  market: 'SSE' | 'SZSE' | 'NASDAQ' | 'NYSE' | 'AMEX';
+  market: 'SSE' | 'SSE_FUND' | 'SSE_BOND' | 'NASDAQ' | 'NYSE' | 'AMEX' | 'US_ETF';
   type: 'STOCK' | 'FUND' | 'ETF' | 'BOND';
   currency: string;
   lastPrice: number;

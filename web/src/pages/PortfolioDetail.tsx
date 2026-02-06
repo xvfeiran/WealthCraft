@@ -369,10 +369,12 @@ function AddAssetModal({
     setCurrency(instrument.currency);
     setCostPrice(instrument.lastPrice.toString());
 
-    // 根据市场设置类型
-    const usExchanges = ['NASDAQ', 'NYSE', 'AMEX'];
-    if (usExchanges.includes(instrument.market)) {
+    // 根据市场和类型设置资产类型
+    const usStockExchanges = ['NASDAQ', 'NYSE', 'AMEX', 'US_ETF'];
+    if (usStockExchanges.includes(instrument.market)) {
       setType('US_STOCK_FUND');
+    } else if (instrument.market === 'SSE_BOND') {
+      setType('BOND');
     } else {
       setType('CN_STOCK_FUND');
     }
@@ -410,11 +412,13 @@ function AddAssetModal({
   };
 
   const MARKET_LABELS: Record<string, string> = {
-    SSE: '上交所',
-    SZSE: '深交所',
+    SSE: '上交所-股票',
+    SSE_FUND: '上交所-基金',
+    SSE_BOND: '上交所-债券',
     NASDAQ: 'NASDAQ',
     NYSE: 'NYSE',
     AMEX: 'AMEX',
+    US_ETF: '美股ETF',
   };
 
   return (
@@ -451,10 +455,13 @@ function AddAssetModal({
               />
               <select value={searchMarket} onChange={(e) => setSearchMarket(e.target.value)}>
                 <option value="">全部市场</option>
-                <option value="SSE">上交所 (A股)</option>
+                <option value="SSE">上交所-股票</option>
+                <option value="SSE_FUND">上交所-基金</option>
+                <option value="SSE_BOND">上交所-债券</option>
                 <option value="NASDAQ">NASDAQ</option>
                 <option value="NYSE">NYSE</option>
                 <option value="AMEX">AMEX</option>
+                <option value="US_ETF">美股ETF</option>
               </select>
               <button
                 type="button"

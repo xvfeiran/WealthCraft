@@ -6,6 +6,20 @@ import cron from 'node-cron';
 import { marketDataService } from './services/marketDataService';
 import { instrumentSyncService } from './services/instrumentSyncService';
 
+// Helper function to log sync results
+function logSyncResult(result: Awaited<ReturnType<typeof instrumentSyncService.syncAll>>) {
+  logger.info('Sync completed:');
+  logger.info('  US Stocks:');
+  logger.info(`    NASDAQ: ${result.usStock.NASDAQ.success} success, ${result.usStock.NASDAQ.failed} failed`);
+  logger.info(`    NYSE: ${result.usStock.NYSE.success} success, ${result.usStock.NYSE.failed} failed`);
+  logger.info(`    AMEX: ${result.usStock.AMEX.success} success, ${result.usStock.AMEX.failed} failed`);
+  logger.info(`  US ETF: ${result.usETF.success} success, ${result.usETF.failed} failed`);
+  logger.info('  SSE:');
+  logger.info(`    Stock: ${result.sse.stock.success} success, ${result.sse.stock.failed} failed`);
+  logger.info(`    Fund: ${result.sse.fund.success} success, ${result.sse.fund.failed} failed`);
+  logger.info(`    Bond: ${result.sse.bond.success} success, ${result.sse.bond.failed} failed`);
+}
+
 async function main() {
   try {
     // Test database connection
@@ -24,11 +38,7 @@ async function main() {
       logger.info('Running scheduled market instruments sync (all exchanges)...');
       try {
         const result = await instrumentSyncService.syncAll();
-        logger.info('Scheduled sync completed:');
-        logger.info(`  NASDAQ: ${result.us.NASDAQ.success} success, ${result.us.NASDAQ.failed} failed`);
-        logger.info(`  NYSE: ${result.us.NYSE.success} success, ${result.us.NYSE.failed} failed`);
-        logger.info(`  AMEX: ${result.us.AMEX.success} success, ${result.us.AMEX.failed} failed`);
-        logger.info(`  SSE: ${result.sse.success} success, ${result.sse.failed} failed`);
+        logSyncResult(result);
       } catch (err) {
         logger.error('Scheduled sync failed', err);
       }
@@ -55,10 +65,7 @@ async function main() {
       instrumentSyncService.syncAll()
         .then((result) => {
           logger.info('Force sync completed:');
-          logger.info(`  NASDAQ: ${result.us.NASDAQ.success} success, ${result.us.NASDAQ.failed} failed`);
-          logger.info(`  NYSE: ${result.us.NYSE.success} success, ${result.us.NYSE.failed} failed`);
-          logger.info(`  AMEX: ${result.us.AMEX.success} success, ${result.us.AMEX.failed} failed`);
-          logger.info(`  SSE: ${result.sse.success} success, ${result.sse.failed} failed`);
+          logSyncResult(result);
         })
         .catch((err) => {
           logger.error('Force sync failed', err);
@@ -73,10 +80,7 @@ async function main() {
         instrumentSyncService.syncAll()
           .then((result) => {
             logger.info('Initial sync completed:');
-            logger.info(`  NASDAQ: ${result.us.NASDAQ.success} success, ${result.us.NASDAQ.failed} failed`);
-            logger.info(`  NYSE: ${result.us.NYSE.success} success, ${result.us.NYSE.failed} failed`);
-            logger.info(`  AMEX: ${result.us.AMEX.success} success, ${result.us.AMEX.failed} failed`);
-            logger.info(`  SSE: ${result.sse.success} success, ${result.sse.failed} failed`);
+            logSyncResult(result);
           })
           .catch((err) => {
             logger.error('Initial sync failed', err);

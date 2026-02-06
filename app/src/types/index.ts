@@ -35,7 +35,7 @@ export interface MarketStock {
   volume?: number;
   marketCap?: number;
   currency: string;
-  market: 'NASDAQ' | 'NYSE' | 'AMEX' | 'SSE';
+  market: 'NASDAQ' | 'NYSE' | 'AMEX' | 'US_ETF' | 'SSE' | 'SSE_FUND' | 'SSE_BOND';
 }
 
 export interface ApiResponse<T = any> {

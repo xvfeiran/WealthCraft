@@ -94,6 +94,58 @@ GET https://api.nasdaq.com/api/screener/stocks?download=true&exchange=AMEX
 
 ---
 
+### 2. 获取 ETF 列表
+
+* **URL**: `https://api.nasdaq.com/api/screener/etf`
+* **方法**: GET
+* **示例请求**:
+
+```
+GET https://api.nasdaq.com/api/screener/etf
+```
+
+* **返回 JSON 结构**:
+
+```json
+{
+  "data": {
+    "records": {
+      "totalrecords": 4433,
+      "limit": 50,
+      "offset": 0,
+      "data": {
+        "headers": {
+          "symbol": "SYMBOL",
+          "companyName": "NAME",
+          "lastSalePrice": "LAST PRICE",
+          "percentageChange": "% CHANGE",
+          "oneYearPercentagechange": "1 yr % CHANGE"
+        },
+        "rows": [
+          {
+            "symbol": "PALL",
+            "companyName": "abrdn Physical Palladium Shares ETF",
+            "lastSalePrice": "$160.30",
+            "percentageChange": "+0.36%",
+            "oneYearPercentage": "68.93%"
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+> **说明**:
+
+* `symbol`：ETF 代码
+* `companyName`：ETF 名称
+* `lastSalePrice`：最新成交价
+* `percentageChange`：涨跌幅
+* `oneYearPercentage`：一年涨跌幅
+
+---
+
 # **SSE（上海证券交易所）API**
 
 ### 1. 获取股票列表
@@ -136,7 +188,72 @@ GET https://yunhq.sse.com.cn:32042/v1/sh1/list/exchange/equity
 
 ---
 
-### 2. 获取日 K 线数据
+### 2. 获取基金列表
+
+* **URL**: `https://yunhq.sse.com.cn:32042/v1/sh1/list/exchange/fwr`
+* **方法**: GET
+* **示例请求**:
+
+```
+GET https://yunhq.sse.com.cn:32042/v1/sh1/list/exchange/fwr
+```
+
+* **返回 JSON 结构**:
+
+```json
+{
+  "date": 20260205,
+  "time": 161457,
+  "total": 991,
+  "begin": 0,
+  "end": 991,
+  "list": [
+    ["501001", "财通精选", 1.4900],
+    ["501005", "精准医疗", 1.0180]
+  ]
+}
+```
+
+> **说明**:
+
+* `list`：基金数组，每项为 `[code, name, lastPrice]`
+
+---
+
+### 3. 获取债券列表
+
+* **URL**: `https://yunhq.sse.com.cn:32042/v1/sh1/list/exchange/all`
+* **方法**: GET
+* **示例请求**:
+
+```
+GET https://yunhq.sse.com.cn:32042/v1/sh1/list/exchange/all
+```
+
+* **返回 JSON 结构**:
+
+```json
+{
+  "date": 20260205,
+  "time": 161614,
+  "total": 21198,
+  "begin": 0,
+  "end": 21198,
+  "list": [
+    ["010609", "06国债⑼", 100.0000],
+    ["010706", "07国债06", 100.0000]
+  ]
+}
+```
+
+> **说明**:
+
+* `list`：包含所有证券类型，需按代码前缀过滤债券
+* 债券代码前缀：`01`（国债）、`02`（地方债）、`11`（可转债）、`12`（企业债）
+
+---
+
+### 4. 获取日 K 线数据
 
 * **URL**: `https://yunhq.sse.com.cn:32042/v1/sh1/dayk/{code}`
 * **方法**: GET

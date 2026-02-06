@@ -15,12 +15,6 @@ interface NASDAQStock {
   industry: string;
 }
 
-interface SSEStock {
-  code: string;
-  name: string;
-  lastPrice: number;
-}
-
 // US交易所列表
 const US_EXCHANGES = ['NASDAQ', 'NYSE', 'AMEX'] as const;
 type USExchange = typeof US_EXCHANGES[number];
@@ -117,9 +111,79 @@ export class InstrumentSyncService {
     return results;
   }
 
+  // 同步美股ETF数据
+  async syncUSETF(): Promise<{ success: number; failed: number }> {
+    const taskId = await this.createSyncTask('US_ETF');
+    let success = 0;
+    let failed = 0;
+
+    try {
+      await this.updateSyncTask(taskId, 'RUNNING');
+
+      const response = await proxiedFetch('https://api.nasdaq.com/api/screener/etf', {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`US ETF API error: ${response.status}`);
+      }
+
+      const data = await response.json() as any;
+      const rows = data?.data?.records?.data?.rows || [];
+
+      logger.info(`Fetched ${rows.length} ETFs from US`);
+
+      for (const etf of rows) {
+        try {
+          const price = parseFloat(etf.lastSalePrice?.replace('$', '') || '0');
+          const changePercent = parseFloat(etf.percentageChange?.replace('%', '').replace('+', '') || '0');
+
+          const safeChangePercent = isNaN(changePercent) ? 0 : changePercent;
+
+          await prisma.marketInstrument.upsert({
+            where: {
+              symbol_market: { symbol: etf.symbol, market: 'US_ETF' },
+            },
+            update: {
+              name: etf.companyName,
+              lastPrice: price,
+              changePercent: safeChangePercent,
+              lastSyncAt: new Date(),
+            },
+            create: {
+              symbol: etf.symbol,
+              name: etf.companyName,
+              market: 'US_ETF',
+              type: 'ETF',
+              currency: 'USD',
+              lastPrice: price,
+              changePercent: safeChangePercent,
+              country: 'United States',
+            },
+          });
+          success++;
+        } catch (err) {
+          failed++;
+          logger.error(`Failed to sync US ETF ${etf.symbol}`, err);
+        }
+      }
+
+      await this.updateSyncTask(taskId, 'SUCCESS', rows.length, success, failed);
+      logger.info(`US ETF sync completed: ${success} success, ${failed} failed`);
+    } catch (error: any) {
+      await this.updateSyncTask(taskId, 'FAILED', 0, success, failed, error.message);
+      logger.error('US ETF sync failed', error);
+    }
+
+    return { success, failed };
+  }
+
   // 同步上交所A股数据
-  async syncSSE(): Promise<{ success: number; failed: number }> {
-    const taskId = await this.createSyncTask('SSE');
+  async syncSSEStock(): Promise<{ success: number; failed: number }> {
+    const taskId = await this.createSyncTask('SSE_STOCK');
     let success = 0;
     let failed = 0;
 
@@ -134,7 +198,7 @@ export class InstrumentSyncService {
       });
 
       if (!response.ok) {
-        throw new Error(`SSE API error: ${response.status}`);
+        throw new Error(`SSE Stock API error: ${response.status}`);
       }
 
       const data = await response.json() as any;
@@ -175,27 +239,190 @@ export class InstrumentSyncService {
       }
 
       await this.updateSyncTask(taskId, 'SUCCESS', list.length, success, failed);
-      logger.info(`SSE sync completed: ${success} success, ${failed} failed`);
+      logger.info(`SSE Stock sync completed: ${success} success, ${failed} failed`);
     } catch (error: any) {
       await this.updateSyncTask(taskId, 'FAILED', 0, success, failed, error.message);
-      logger.error('SSE sync failed', error);
+      logger.error('SSE Stock sync failed', error);
     }
 
     return { success, failed };
   }
 
+  // 同步上交所基金数据
+  async syncSSEFund(): Promise<{ success: number; failed: number }> {
+    const taskId = await this.createSyncTask('SSE_FUND');
+    let success = 0;
+    let failed = 0;
+
+    try {
+      await this.updateSyncTask(taskId, 'RUNNING');
+
+      const response = await proxiedFetch('https://yunhq.sse.com.cn:32042/v1/sh1/list/exchange/fwr', {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Referer': 'https://www.sse.com.cn/',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`SSE Fund API error: ${response.status}`);
+      }
+
+      const data = await response.json() as any;
+      const list: any[] = data?.list || [];
+
+      logger.info(`Fetched ${list.length} funds from SSE`);
+
+      for (const item of list) {
+        try {
+          const symbol = item[0];
+          const name = item[1];
+          const lastPrice = item[2] || 0;
+
+          await prisma.marketInstrument.upsert({
+            where: {
+              symbol_market: { symbol, market: 'SSE_FUND' },
+            },
+            update: {
+              name,
+              lastPrice,
+              lastSyncAt: new Date(),
+            },
+            create: {
+              symbol,
+              name,
+              market: 'SSE_FUND',
+              type: 'FUND',
+              currency: 'CNY',
+              lastPrice,
+              country: 'China',
+            },
+          });
+          success++;
+        } catch (err) {
+          failed++;
+          logger.error(`Failed to sync SSE fund ${item[0]}`, err);
+        }
+      }
+
+      await this.updateSyncTask(taskId, 'SUCCESS', list.length, success, failed);
+      logger.info(`SSE Fund sync completed: ${success} success, ${failed} failed`);
+    } catch (error: any) {
+      await this.updateSyncTask(taskId, 'FAILED', 0, success, failed, error.message);
+      logger.error('SSE Fund sync failed', error);
+    }
+
+    return { success, failed };
+  }
+
+  // 同步上交所债券数据
+  async syncSSEBond(): Promise<{ success: number; failed: number }> {
+    const taskId = await this.createSyncTask('SSE_BOND');
+    let success = 0;
+    let failed = 0;
+
+    try {
+      await this.updateSyncTask(taskId, 'RUNNING');
+
+      const response = await proxiedFetch('https://yunhq.sse.com.cn:32042/v1/sh1/list/exchange/all', {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Referer': 'https://www.sse.com.cn/',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`SSE Bond API error: ${response.status}`);
+      }
+
+      const data = await response.json() as any;
+      const list: any[] = data?.list || [];
+
+      // 过滤债券（代码以01开头的国债等）
+      const bonds = list.filter((item: any[]) => {
+        const code = item[0];
+        return code.startsWith('01') || code.startsWith('02') || code.startsWith('11') || code.startsWith('12');
+      });
+
+      logger.info(`Fetched ${bonds.length} bonds from SSE (filtered from ${list.length})`);
+
+      for (const item of bonds) {
+        try {
+          const symbol = item[0];
+          const name = item[1];
+          const lastPrice = item[2] || 0;
+
+          await prisma.marketInstrument.upsert({
+            where: {
+              symbol_market: { symbol, market: 'SSE_BOND' },
+            },
+            update: {
+              name,
+              lastPrice,
+              lastSyncAt: new Date(),
+            },
+            create: {
+              symbol,
+              name,
+              market: 'SSE_BOND',
+              type: 'BOND',
+              currency: 'CNY',
+              lastPrice,
+              country: 'China',
+            },
+          });
+          success++;
+        } catch (err) {
+          failed++;
+          logger.error(`Failed to sync SSE bond ${item[0]}`, err);
+        }
+      }
+
+      await this.updateSyncTask(taskId, 'SUCCESS', bonds.length, success, failed);
+      logger.info(`SSE Bond sync completed: ${success} success, ${failed} failed`);
+    } catch (error: any) {
+      await this.updateSyncTask(taskId, 'FAILED', 0, success, failed, error.message);
+      logger.error('SSE Bond sync failed', error);
+    }
+
+    return { success, failed };
+  }
+
+  // 同步所有上交所数据
+  async syncAllSSE(): Promise<{
+    stock: { success: number; failed: number };
+    fund: { success: number; failed: number };
+    bond: { success: number; failed: number };
+  }> {
+    const stock = await this.syncSSEStock();
+    const fund = await this.syncSSEFund();
+    const bond = await this.syncSSEBond();
+    return { stock, fund, bond };
+  }
+
+  // 保留旧方法名兼容性
+  async syncSSE(): Promise<{ success: number; failed: number }> {
+    return this.syncSSEStock();
+  }
+
   // 同步所有交易所
   async syncAll(): Promise<{
-    us: Record<USExchange, { success: number; failed: number }>;
-    sse: { success: number; failed: number };
+    usStock: Record<USExchange, { success: number; failed: number }>;
+    usETF: { success: number; failed: number };
+    sse: {
+      stock: { success: number; failed: number };
+      fund: { success: number; failed: number };
+      bond: { success: number; failed: number };
+    };
   }> {
     logger.info('Starting full market instruments sync...');
 
-    const us = await this.syncAllUS();
-    const sse = await this.syncSSE();
+    const usStock = await this.syncAllUS();
+    const usETF = await this.syncUSETF();
+    const sse = await this.syncAllSSE();
 
     logger.info('Full market instruments sync completed');
-    return { us, sse };
+    return { usStock, usETF, sse };
   }
 
   // 搜索投资标的

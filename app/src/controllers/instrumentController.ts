@@ -101,7 +101,7 @@ export class InstrumentController {
     }
   }
 
-  // 同步特定交易所
+  // 同步特定交易所/类型
   async syncMarket(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       if (!req.user) {
@@ -109,7 +109,7 @@ export class InstrumentController {
       }
 
       const { market } = req.params;
-      const validMarkets = ['NASDAQ', 'NYSE', 'AMEX', 'SSE'];
+      const validMarkets = ['NASDAQ', 'NYSE', 'AMEX', 'US_ETF', 'SSE', 'SSE_STOCK', 'SSE_FUND', 'SSE_BOND'];
       const marketUpper = market.toUpperCase();
 
       if (!validMarkets.includes(marketUpper)) {
@@ -122,11 +122,23 @@ export class InstrumentController {
       });
 
       // 在后台执行同步
-      if (marketUpper === 'SSE') {
-        instrumentSyncService.syncSSE().catch(console.error);
-      } else {
-        // NASDAQ, NYSE, AMEX 都使用 syncUSExchange
-        instrumentSyncService.syncUSExchange(marketUpper as 'NASDAQ' | 'NYSE' | 'AMEX').catch(console.error);
+      switch (marketUpper) {
+        case 'US_ETF':
+          instrumentSyncService.syncUSETF().catch(console.error);
+          break;
+        case 'SSE':
+        case 'SSE_STOCK':
+          instrumentSyncService.syncSSEStock().catch(console.error);
+          break;
+        case 'SSE_FUND':
+          instrumentSyncService.syncSSEFund().catch(console.error);
+          break;
+        case 'SSE_BOND':
+          instrumentSyncService.syncSSEBond().catch(console.error);
+          break;
+        default:
+          // NASDAQ, NYSE, AMEX
+          instrumentSyncService.syncUSExchange(marketUpper as 'NASDAQ' | 'NYSE' | 'AMEX').catch(console.error);
       }
     } catch (error) {
       next(error);
