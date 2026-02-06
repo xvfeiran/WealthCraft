@@ -122,6 +122,9 @@ export const assetApi = {
 
   delete: (id: string) => api.delete<ApiResponse>(`/assets/${id}`),
 
+  move: (id: string, targetSubPortfolioId: string | null) =>
+    api.post<ApiResponse>(`/assets/${id}/move`, { targetSubPortfolioId }),
+
   search: (query: string, market?: 'US' | 'CN') =>
     api.get<ApiResponse>('/assets/search', { params: { q: query, market } }),
 };

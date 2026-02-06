@@ -181,6 +181,40 @@ export class AssetService {
     };
   }
 
+  async move(assetId: string, userId: string, targetSubPortfolioId: string | null) {
+    // Verify ownership through portfolio
+    const asset = await prisma.asset.findUnique({
+      where: { id: assetId },
+      include: { portfolio: true },
+    });
+
+    if (!asset || asset.portfolio.userId !== userId) {
+      throw new AppError('Asset not found', 404);
+    }
+
+    // 如果目标是子组合，验证子组合存在且属于该组合
+    if (targetSubPortfolioId !== null) {
+      const subPortfolio = await prisma.subPortfolio.findUnique({
+        where: { id: targetSubPortfolioId },
+      });
+      if (!subPortfolio || subPortfolio.portfolioId !== asset.portfolioId) {
+        throw new AppError('SubPortfolio not found or does not belong to this portfolio', 404);
+      }
+    }
+
+    const updatedAsset = await prisma.asset.update({
+      where: { id: assetId },
+      data: {
+        subPortfolioId: targetSubPortfolioId,
+        // 清除投资规则配置（因为规则是针对直接资产或子组合的）
+        contributionAmount: 0,
+        allocationPercent: 0,
+      },
+    });
+
+    return updatedAsset;
+  }
+
   async updatePrice(assetId: string, newPrice: number, source: string = 'SYNC') {
     const asset = await prisma.asset.findUnique({ where: { id: assetId } });
 

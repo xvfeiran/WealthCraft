@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Plus, TrendingUp, TrendingDown, Wallet, Settings } from 'lucide-react';
 import { portfolioApi } from '../api/client';
 import type { Portfolio, PortfolioSummary } from '../types';
@@ -11,7 +11,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
 
   useEffect(() => {
     loadPortfolios();

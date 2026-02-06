@@ -848,6 +848,11 @@ body {
   color: #166534;
 }
 
+.current-allocation-badge {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 .sub-portfolio-actions {
   display: flex;
   gap: 8px;
@@ -1175,6 +1180,60 @@ body {
   font-size: 18px;
   font-weight: 600;
   color: var(--gray-900);
+}
+
+/* Move Asset Modal */
+.move-asset-info {
+  margin-bottom: 16px;
+  font-size: 14px;
+  color: var(--gray-600);
+}
+
+.move-asset-info strong {
+  color: var(--gray-900);
+}
+
+.move-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.move-option {
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px;
+  border: 2px solid var(--gray-200);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.move-option:hover {
+  border-color: var(--gray-300);
+  background: var(--gray-50);
+}
+
+.move-option.selected {
+  border-color: var(--primary);
+  background: #eff6ff;
+}
+
+.move-option input[type="radio"] {
+  display: none;
+}
+
+.move-option .option-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--gray-800);
+}
+
+.move-option .option-desc {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-top: 2px;
 }
 
 /* Responsive */

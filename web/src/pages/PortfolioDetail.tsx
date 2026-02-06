@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, TrendingUp, TrendingDown, RefreshCw, Search, FolderPlus, Edit2, DollarSign, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, TrendingUp, TrendingDown, RefreshCw, Search, FolderPlus, Edit2, DollarSign, FileText, ArrowRightLeft } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { portfolioApi, assetApi, recommendationApi, instrumentApi, transactionApi, channelApi } from '../api/client';
 import type { Portfolio, Asset, PortfolioSummary, Recommendation, MarketInstrument, SubPortfolio, Transaction, Channel, Pagination } from '../types';
@@ -34,6 +34,8 @@ export default function PortfolioDetail() {
   const [transactionAsset, setTransactionAsset] = useState<Asset | null>(null);
   const [showAssetDetailModal, setShowAssetDetailModal] = useState(false);
   const [detailAsset, setDetailAsset] = useState<Asset | null>(null);
+  const [showMoveAssetModal, setShowMoveAssetModal] = useState(false);
+  const [moveAsset, setMoveAsset] = useState<Asset | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -114,6 +116,11 @@ export default function PortfolioDetail() {
     setShowAssetDetailModal(true);
   };
 
+  const handleOpenMoveAsset = (asset: Asset) => {
+    setMoveAsset(asset);
+    setShowMoveAssetModal(true);
+  };
+
   const formatCurrency = (value: number, currency: string = 'CNY') => {
     return new Intl.NumberFormat('zh-CN', {
       style: 'currency',
@@ -125,6 +132,46 @@ export default function PortfolioDetail() {
     const sign = value >= 0 ? '+' : '';
     return `${sign}${value.toFixed(2)}%`;
   };
+
+  // Calculate total portfolio value and current allocations
+  const calculateAllocations = () => {
+    let totalValue = 0;
+    const subPortfolioValues: Record<string, number> = {};
+    let directAssetsValue = 0;
+
+    // Sum all assets
+    assets.forEach((asset) => {
+      const assetValue = (asset.quantity || 0) * (asset.currentPrice || 0);
+      totalValue += assetValue;
+      if (!asset.subPortfolioId) {
+        directAssetsValue += assetValue;
+      }
+    });
+
+    // Calculate sub-portfolio values from nested assets
+    portfolio?.subPortfolios?.forEach((sub) => {
+      let subValue = 0;
+      sub.assets?.forEach((asset) => {
+        subValue += (asset.quantity || 0) * (asset.currentPrice || 0);
+      });
+      subPortfolioValues[sub.id] = subValue;
+      totalValue += subValue;
+    });
+
+    return {
+      totalValue,
+      directAssetsValue,
+      subPortfolioValues,
+      getSubPortfolioPercent: (subId: string) =>
+        totalValue > 0 ? (subPortfolioValues[subId] || 0) / totalValue * 100 : 0,
+      getAssetPercent: (assetValue: number) =>
+        totalValue > 0 ? assetValue / totalValue * 100 : 0,
+      getDirectAssetsPercent: () =>
+        totalValue > 0 ? directAssetsValue / totalValue * 100 : 0,
+    };
+  };
+
+  const allocations = portfolio ? calculateAllocations() : null;
 
   if (loading) {
     return <div className="loading">加载中...</div>;
@@ -221,7 +268,10 @@ export default function PortfolioDetail() {
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ name, percentage }) => `${name} ${percentage.toFixed(1)}%`}
+                      label={(props) => {
+                        const data = props.payload as { name: string; percentage: number };
+                        return `${data.name} ${data.percentage.toFixed(1)}%`;
+                      }}
                       outerRadius={100}
                       dataKey="value"
                     >
@@ -230,7 +280,7 @@ export default function PortfolioDetail() {
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value: number) => formatCurrency(value, summary?.currency || 'CNY')}
+                      formatter={(value) => formatCurrency(Number(value), summary?.currency || 'CNY')}
                     />
                     <Legend />
                   </PieChart>
@@ -264,6 +314,11 @@ export default function PortfolioDetail() {
                     <div className="sub-portfolio-header">
                       <div className="sub-portfolio-info">
                         <h4>{subPortfolio.name}</h4>
+                        {allocations && (
+                          <span className="current-allocation-badge">
+                            当前: {allocations.getSubPortfolioPercent(subPortfolio.id).toFixed(1)}%
+                          </span>
+                        )}
                         {portfolio.ruleType === 'ALLOCATION' && subPortfolio.allocationPercent > 0 && (
                           <span className="allocation-badge">目标: {subPortfolio.allocationPercent}%</span>
                         )}
@@ -302,6 +357,7 @@ export default function PortfolioDetail() {
                             <th>名称</th>
                             <th>代码</th>
                             <th>市场</th>
+                            <th>当前比例</th>
                             <th>数量</th>
                             <th>成本价</th>
                             <th>现价</th>
@@ -311,17 +367,23 @@ export default function PortfolioDetail() {
                           </tr>
                         </thead>
                         <tbody>
-                          {subPortfolio.assets.map((asset) => (
+                          {subPortfolio.assets.map((asset) => {
+                            const assetValue = (asset.quantity || 0) * (asset.currentPrice || 0);
+                            const currentPercent = allocations?.getAssetPercent(assetValue) || 0;
+                            return (
                             <tr key={asset.id}>
                               <td>{asset.name}</td>
                               <td>{asset.symbol}</td>
                               <td>{MARKET_LABELS[asset.market] || asset.market}</td>
+                              <td>{currentPercent.toFixed(1)}%</td>
                               <td>{asset.quantity}</td>
                               <td>{formatCurrency(asset.costPrice, asset.currency)}</td>
                               <td>{formatCurrency(asset.currentPrice, asset.currency)}</td>
                               <td>{formatCurrency((asset.quantity || 0) * (asset.currentPrice || 0), asset.currency)}</td>
                               <td className={(asset.currentPrice - asset.costPrice) >= 0 ? 'positive' : 'negative'}>
                                 {formatCurrency((asset.quantity || 0) * (asset.currentPrice - asset.costPrice), asset.currency)}
+                                <br />
+                                <small>({formatPercent(asset.costPrice > 0 ? ((asset.currentPrice - asset.costPrice) / asset.costPrice) * 100 : 0)})</small>
                               </td>
                               <td>
                                 <div className="action-buttons">
@@ -340,6 +402,13 @@ export default function PortfolioDetail() {
                                     <FileText size={14} />
                                   </button>
                                   <button
+                                    className="btn btn-icon btn-secondary"
+                                    onClick={() => handleOpenMoveAsset(asset)}
+                                    title="移动"
+                                  >
+                                    <ArrowRightLeft size={14} />
+                                  </button>
+                                  <button
                                     className="btn btn-icon btn-danger"
                                     onClick={() => handleDeleteAsset(asset.id)}
                                     title="删除"
@@ -349,7 +418,8 @@ export default function PortfolioDetail() {
                                 </div>
                               </td>
                             </tr>
-                          ))}
+                            );
+                          })}
                         </tbody>
                       </table>
                     ) : (
@@ -377,6 +447,7 @@ export default function PortfolioDetail() {
                       <th>名称</th>
                       <th>代码</th>
                       <th>市场</th>
+                      <th>当前比例</th>
                       {portfolio.ruleType === 'ALLOCATION' && <th>目标比例</th>}
                       {portfolio.ruleType === 'CONTRIBUTION' && <th>定投金额</th>}
                       <th>数量</th>
@@ -388,11 +459,15 @@ export default function PortfolioDetail() {
                     </tr>
                   </thead>
                   <tbody>
-                    {assets.filter(a => !a.subPortfolioId).map((asset) => (
+                    {assets.filter(a => !a.subPortfolioId).map((asset) => {
+                      const assetValue = (asset.quantity || 0) * (asset.currentPrice || 0);
+                      const currentPercent = allocations?.getAssetPercent(assetValue) || 0;
+                      return (
                       <tr key={asset.id}>
                         <td>{asset.name}</td>
                         <td>{asset.symbol}</td>
                         <td>{MARKET_LABELS[asset.market] || asset.market}</td>
+                        <td>{currentPercent.toFixed(1)}%</td>
                         {portfolio.ruleType === 'ALLOCATION' && <td>{asset.allocationPercent}%</td>}
                         {portfolio.ruleType === 'CONTRIBUTION' && <td>{formatCurrency(asset.contributionAmount, portfolio.baseCurrency)}</td>}
                         <td>{asset.quantity}</td>
@@ -421,6 +496,13 @@ export default function PortfolioDetail() {
                               <FileText size={14} />
                             </button>
                             <button
+                              className="btn btn-icon btn-secondary"
+                              onClick={() => handleOpenMoveAsset(asset)}
+                              title="移动"
+                            >
+                              <ArrowRightLeft size={14} />
+                            </button>
+                            <button
                               className="btn btn-icon btn-danger"
                               onClick={() => handleDeleteAsset(asset.id)}
                               title="删除"
@@ -430,7 +512,8 @@ export default function PortfolioDetail() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
@@ -525,6 +608,19 @@ export default function PortfolioDetail() {
           }}
         />
       )}
+
+      {showMoveAssetModal && moveAsset && portfolio && (
+        <MoveAssetModal
+          asset={moveAsset}
+          portfolio={portfolio}
+          onClose={() => { setShowMoveAssetModal(false); setMoveAsset(null); }}
+          onMoved={() => {
+            setShowMoveAssetModal(false);
+            setMoveAsset(null);
+            loadData();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -594,6 +690,11 @@ function AddAssetModal({
     setError('');
 
     try {
+      // For synced instruments, use market price as currentPrice; otherwise use costPrice
+      const currentPriceValue = selectedInstrument
+        ? selectedInstrument.lastPrice
+        : parseFloat(costPrice) || 0;
+
       await assetApi.create(portfolioId, {
         symbol,
         name,
@@ -602,7 +703,7 @@ function AddAssetModal({
         currency,
         quantity: parseFloat(quantity) || 0,
         costPrice: parseFloat(costPrice) || 0,
-        currentPrice: parseFloat(costPrice) || 0,
+        currentPrice: currentPriceValue,
         allocationPercent: parseFloat(allocationPercent) || 0,
         contributionAmount: parseFloat(contributionAmount) || 0,
         source: selectedInstrument ? 'SYNC' : 'MANUAL',
@@ -1171,7 +1272,7 @@ function AssetDetailModal({
     try {
       const res = await transactionApi.getByAsset(asset.id, page, 10);
       setTransactions(res.data.data || []);
-      setPagination(res.data.pagination);
+      setPagination(res.data.pagination || null);
     } catch (err) {
       console.error('Failed to load transactions', err);
     } finally {
@@ -1326,6 +1427,109 @@ function AssetDetailModal({
             关闭
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function MoveAssetModal({
+  asset,
+  portfolio,
+  onClose,
+  onMoved,
+}: {
+  asset: Asset;
+  portfolio: Portfolio;
+  onClose: () => void;
+  onMoved: () => void;
+}) {
+  const [targetSubPortfolioId, setTargetSubPortfolioId] = useState<string | null>(
+    asset.subPortfolioId || null
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // 如果目标与当前位置相同，不需要移动
+    if (targetSubPortfolioId === (asset.subPortfolioId || null)) {
+      onClose();
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      await assetApi.move(asset.id, targetSubPortfolioId);
+      onMoved();
+    } catch (err: any) {
+      setError(err.response?.data?.error || '移动失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const currentLocation = asset.subPortfolioId
+    ? portfolio.subPortfolios?.find(sp => sp.id === asset.subPortfolioId)?.name || '子组合'
+    : '直接持有';
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>移动资产</h3>
+        <p className="move-asset-info">
+          将 <strong>{asset.name}</strong> 从「{currentLocation}」移动到：
+        </p>
+
+        {error && <div className="error-message">{error}</div>}
+
+        <form onSubmit={handleSubmit}>
+          <div className="move-options">
+            <label className={`move-option ${targetSubPortfolioId === null ? 'selected' : ''}`}>
+              <input
+                type="radio"
+                name="target"
+                checked={targetSubPortfolioId === null}
+                onChange={() => setTargetSubPortfolioId(null)}
+              />
+              <span className="option-label">直接持有的资产</span>
+              <span className="option-desc">不属于任何子组合</span>
+            </label>
+
+            {portfolio.subPortfolios?.map((sub) => (
+              <label
+                key={sub.id}
+                className={`move-option ${targetSubPortfolioId === sub.id ? 'selected' : ''}`}
+              >
+                <input
+                  type="radio"
+                  name="target"
+                  checked={targetSubPortfolioId === sub.id}
+                  onChange={() => setTargetSubPortfolioId(sub.id)}
+                />
+                <span className="option-label">{sub.name}</span>
+                {portfolio.ruleType === 'ALLOCATION' && sub.allocationPercent > 0 && (
+                  <span className="option-desc">目标比例: {sub.allocationPercent}%</span>
+                )}
+              </label>
+            ))}
+          </div>
+
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
+              取消
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={loading || targetSubPortfolioId === (asset.subPortfolioId || null)}
+            >
+              {loading ? '移动中...' : '确认移动'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

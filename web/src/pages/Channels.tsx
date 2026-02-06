@@ -20,7 +20,7 @@ export default function Channels() {
       setLoading(true);
       const response = await channelApi.getAll(page, 10);
       setChannels(response.data.data || []);
-      setPagination(response.data.pagination);
+      setPagination(response.data.pagination || null);
     } catch (error) {
       console.error('Failed to load channels', error);
     } finally {

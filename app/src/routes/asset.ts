@@ -14,6 +14,7 @@ router.get('/search', assetController.search.bind(assetController));
 router.get('/:id', assetController.getById.bind(assetController));
 router.put('/:id', assetController.update.bind(assetController));
 router.delete('/:id', assetController.delete.bind(assetController));
+router.post('/:id/move', assetController.move.bind(assetController));
 
 // Portfolio asset routes (nested)
 router.get('/portfolio/:portfolioId', assetController.getByPortfolio.bind(assetController));

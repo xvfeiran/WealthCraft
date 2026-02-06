@@ -161,6 +161,32 @@ export class AssetController {
       next(error);
     }
   }
+
+  async move(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) {
+        throw new AppError('Unauthorized', 401);
+      }
+
+      const { id } = req.params;
+      const { targetSubPortfolioId } = req.body;
+
+      // targetSubPortfolioId can be null (move to direct assets) or a string (move to sub-portfolio)
+      const asset = await assetService.move(
+        id,
+        req.user.userId,
+        targetSubPortfolioId === undefined ? null : targetSubPortfolioId
+      );
+
+      res.json({
+        success: true,
+        data: asset,
+        message: 'Asset moved successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const assetController = new AssetController();
