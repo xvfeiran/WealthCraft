@@ -1,7 +1,7 @@
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
+import { Market } from '../types';
 
-export type AssetType = 'CN_STOCK_FUND' | 'US_STOCK_FUND' | 'BOND' | 'CRYPTO';
 export type DataSource = 'SYNC' | 'MANUAL';
 
 export class AssetService {
@@ -36,11 +36,14 @@ export class AssetService {
     data: {
       symbol: string;
       name: string;
-      type: AssetType;
+      market: Market;
+      subPortfolioId?: string;
       currency?: string;
       quantity?: number;
       costPrice?: number;
       currentPrice?: number;
+      contributionAmount?: number;
+      allocationPercent?: number;
       source?: DataSource;
     }
   ) {
@@ -51,6 +54,16 @@ export class AssetService {
 
     if (!portfolio) {
       throw new AppError('Portfolio not found', 404);
+    }
+
+    // 如果指定了子组合，验证子组合存在且属于该组合
+    if (data.subPortfolioId) {
+      const subPortfolio = await prisma.subPortfolio.findUnique({
+        where: { id: data.subPortfolioId },
+      });
+      if (!subPortfolio || subPortfolio.portfolioId !== portfolioId) {
+        throw new AppError('SubPortfolio not found or does not belong to this portfolio', 404);
+      }
     }
 
     // Check if asset with same symbol already exists
@@ -67,13 +80,16 @@ export class AssetService {
     const asset = await prisma.asset.create({
       data: {
         portfolioId,
+        subPortfolioId: data.subPortfolioId || null,
         symbol: data.symbol,
         name: data.name,
-        type: data.type,
+        market: data.market,
         currency: data.currency || 'CNY',
         quantity: data.quantity || 0,
         costPrice: data.costPrice || 0,
         currentPrice: data.currentPrice || data.costPrice || 0,
+        contributionAmount: data.contributionAmount || 0,
+        allocationPercent: data.allocationPercent || 0,
         source: data.source || 'MANUAL',
       },
     });
@@ -86,9 +102,12 @@ export class AssetService {
     userId: string,
     data: {
       name?: string;
+      subPortfolioId?: string | null;
       quantity?: number;
       costPrice?: number;
       currentPrice?: number;
+      contributionAmount?: number;
+      allocationPercent?: number;
     }
   ) {
     // Verify ownership through portfolio
@@ -99,6 +118,16 @@ export class AssetService {
 
     if (!asset || asset.portfolio.userId !== userId) {
       throw new AppError('Asset not found', 404);
+    }
+
+    // 如果更新子组合ID，验证子组合存在且属于该组合
+    if (data.subPortfolioId !== undefined && data.subPortfolioId !== null) {
+      const subPortfolio = await prisma.subPortfolio.findUnique({
+        where: { id: data.subPortfolioId },
+      });
+      if (!subPortfolio || subPortfolio.portfolioId !== asset.portfolioId) {
+        throw new AppError('SubPortfolio not found or does not belong to this portfolio', 404);
+      }
     }
 
     const updatedAsset = await prisma.asset.update({

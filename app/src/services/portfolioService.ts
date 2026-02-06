@@ -1,54 +1,74 @@
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
-import { PortfolioSummary, TargetAllocation } from '../types';
+import { PortfolioSummary, PortfolioRuleType, ContributionPeriod } from '../types';
 import { getExchangeRate, convertCurrency } from '../utils/currency';
-
-export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';
 
 export class PortfolioService {
   async create(
     userId: string,
     name: string,
-    targetAllocation: TargetAllocation = {},
-    riskLevel: RiskLevel = 'MEDIUM',
-    baseCurrency: string = 'CNY'
+    baseCurrency: string = 'CNY',
+    ruleType?: PortfolioRuleType,
+    contributionPeriod?: ContributionPeriod
   ) {
+    // 验证规则类型：如果设置了定投周期，则规则类型必须为CONTRIBUTION
+    if (contributionPeriod && ruleType !== 'CONTRIBUTION') {
+      throw new AppError('Contribution period requires CONTRIBUTION rule type', 400);
+    }
+
     const portfolio = await prisma.portfolio.create({
       data: {
         userId,
         name,
-        targetAllocation: JSON.stringify(targetAllocation),
-        riskLevel,
         baseCurrency,
+        ruleType,
+        contributionPeriod,
       },
     });
 
-    return {
-      ...portfolio,
-      targetAllocation: JSON.parse(portfolio.targetAllocation),
-    };
+    return portfolio;
   }
 
   async getAll(userId: string) {
     const portfolios = await prisma.portfolio.findMany({
       where: { userId },
       include: {
+        subPortfolios: {
+          include: { assets: true },
+        },
         assets: true,
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    return portfolios.map((p) => ({
-      ...p,
-      targetAllocation: JSON.parse(p.targetAllocation),
-      assetCount: p.assets.length,
-    }));
+    return portfolios.map((p) => {
+      const subPortfolioAssetCount = p.subPortfolios.reduce(
+        (sum, sp) => sum + sp.assets.length,
+        0
+      );
+      return {
+        ...p,
+        assetCount: p.assets.length + subPortfolioAssetCount,
+      };
+    });
   }
 
   async getById(portfolioId: string, userId: string) {
     const portfolio = await prisma.portfolio.findFirst({
       where: { id: portfolioId, userId },
       include: {
+        subPortfolios: {
+          include: {
+            assets: {
+              include: {
+                transactions: {
+                  orderBy: { timestamp: 'desc' },
+                  take: 5,
+                },
+              },
+            },
+          },
+        },
         assets: {
           include: {
             transactions: {
@@ -64,10 +84,7 @@ export class PortfolioService {
       throw new AppError('Portfolio not found', 404);
     }
 
-    return {
-      ...portfolio,
-      targetAllocation: JSON.parse(portfolio.targetAllocation),
-    };
+    return portfolio;
   }
 
   async update(
@@ -75,9 +92,9 @@ export class PortfolioService {
     userId: string,
     data: {
       name?: string;
-      targetAllocation?: TargetAllocation;
-      riskLevel?: string;
       baseCurrency?: string;
+      ruleType?: PortfolioRuleType;
+      contributionPeriod?: ContributionPeriod;
     }
   ) {
     const existing = await prisma.portfolio.findFirst({
@@ -88,20 +105,17 @@ export class PortfolioService {
       throw new AppError('Portfolio not found', 404);
     }
 
-    const updateData: any = { ...data };
-    if (data.targetAllocation) {
-      updateData.targetAllocation = JSON.stringify(data.targetAllocation);
+    // 验证规则类型：如果设置了定投周期，则规则类型必须为CONTRIBUTION
+    if (data.contributionPeriod && data.ruleType !== 'CONTRIBUTION') {
+      throw new AppError('Contribution period requires CONTRIBUTION rule type', 400);
     }
 
     const portfolio = await prisma.portfolio.update({
       where: { id: portfolioId },
-      data: updateData,
+      data,
     });
 
-    return {
-      ...portfolio,
-      targetAllocation: JSON.parse(portfolio.targetAllocation),
-    };
+    return portfolio;
   }
 
   async delete(portfolioId: string, userId: string) {
@@ -120,7 +134,12 @@ export class PortfolioService {
   async getSummary(portfolioId: string, userId: string): Promise<PortfolioSummary> {
     const portfolio = await prisma.portfolio.findFirst({
       where: { id: portfolioId, userId },
-      include: { assets: true },
+      include: {
+        subPortfolios: {
+          include: { assets: true },
+        },
+        assets: true,
+      },
     });
 
     if (!portfolio) {
@@ -131,6 +150,7 @@ export class PortfolioService {
     let totalCost = 0;
     const allocationMap: Record<string, number> = {};
 
+    // 计算直接资产
     for (const asset of portfolio.assets) {
       const rate = await getExchangeRate(asset.currency, portfolio.baseCurrency);
       const assetValue = convertCurrency(asset.quantity * asset.currentPrice, rate);
@@ -139,10 +159,27 @@ export class PortfolioService {
       totalValue += assetValue;
       totalCost += assetCost;
 
-      if (!allocationMap[asset.type]) {
-        allocationMap[asset.type] = 0;
+      if (!allocationMap[asset.market]) {
+        allocationMap[asset.market] = 0;
       }
-      allocationMap[asset.type] += assetValue;
+      allocationMap[asset.market] += assetValue;
+    }
+
+    // 计算子组合内的资产
+    for (const subPortfolio of portfolio.subPortfolios) {
+      for (const asset of subPortfolio.assets) {
+        const rate = await getExchangeRate(asset.currency, portfolio.baseCurrency);
+        const assetValue = convertCurrency(asset.quantity * asset.currentPrice, rate);
+        const assetCost = convertCurrency(asset.quantity * asset.costPrice, rate);
+
+        totalValue += assetValue;
+        totalCost += assetCost;
+
+        if (!allocationMap[asset.market]) {
+          allocationMap[asset.market] = 0;
+        }
+        allocationMap[asset.market] += assetValue;
+      }
     }
 
     const assetAllocation = Object.entries(allocationMap).map(([type, value]) => ({
@@ -159,6 +196,78 @@ export class PortfolioService {
       currency: portfolio.baseCurrency,
       assetAllocation,
     };
+  }
+
+  // 创建子组合
+  async createSubPortfolio(
+    portfolioId: string,
+    userId: string,
+    data: {
+      name: string;
+      contributionAmount?: number;
+      allocationPercent?: number;
+    }
+  ) {
+    const portfolio = await prisma.portfolio.findFirst({
+      where: { id: portfolioId, userId },
+    });
+
+    if (!portfolio) {
+      throw new AppError('Portfolio not found', 404);
+    }
+
+    const subPortfolio = await prisma.subPortfolio.create({
+      data: {
+        portfolioId,
+        name: data.name,
+        contributionAmount: data.contributionAmount || 0,
+        allocationPercent: data.allocationPercent || 0,
+      },
+    });
+
+    return subPortfolio;
+  }
+
+  // 更新子组合
+  async updateSubPortfolio(
+    subPortfolioId: string,
+    userId: string,
+    data: {
+      name?: string;
+      contributionAmount?: number;
+      allocationPercent?: number;
+    }
+  ) {
+    const subPortfolio = await prisma.subPortfolio.findUnique({
+      where: { id: subPortfolioId },
+      include: { portfolio: true },
+    });
+
+    if (!subPortfolio || subPortfolio.portfolio.userId !== userId) {
+      throw new AppError('SubPortfolio not found', 404);
+    }
+
+    const updated = await prisma.subPortfolio.update({
+      where: { id: subPortfolioId },
+      data,
+    });
+
+    return updated;
+  }
+
+  // 删除子组合
+  async deleteSubPortfolio(subPortfolioId: string, userId: string) {
+    const subPortfolio = await prisma.subPortfolio.findUnique({
+      where: { id: subPortfolioId },
+      include: { portfolio: true },
+    });
+
+    if (!subPortfolio || subPortfolio.portfolio.userId !== userId) {
+      throw new AppError('SubPortfolio not found', 404);
+    }
+
+    await prisma.subPortfolio.delete({ where: { id: subPortfolioId } });
+    return { success: true };
   }
 }
 

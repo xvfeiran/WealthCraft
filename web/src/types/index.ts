@@ -6,29 +6,59 @@ export interface User {
   createdAt: string;
 }
 
+// 投资规则类型
+export type PortfolioRuleType = 'CONTRIBUTION' | 'ALLOCATION';
+
+// 定投周期
+export type ContributionPeriod = 'DAILY' | 'WEEKLY' | 'MONTHLY';
+
+// 交易所/市场
+export type Market = 'SSE' | 'SSE_FUND' | 'SSE_BOND' | 'NASDAQ' | 'NYSE' | 'AMEX' | 'US_ETF';
+
 export interface Portfolio {
   id: string;
   userId: string;
   name: string;
-  targetAllocation: Record<string, number>;
-  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
   baseCurrency: string;
+  // 投资规则类型: CONTRIBUTION(定投) | ALLOCATION(固定比例) - 二选一
+  ruleType?: PortfolioRuleType;
+  // 定投周期 (仅当 ruleType = CONTRIBUTION 时使用)
+  contributionPeriod?: ContributionPeriod;
+  createdAt: string;
+  updatedAt: string;
+  subPortfolios?: SubPortfolio[];
+  assets?: Asset[];
+  assetCount?: number;
+}
+
+export interface SubPortfolio {
+  id: string;
+  portfolioId: string;
+  name: string;
+  // 定投金额 (仅当 portfolio.ruleType = CONTRIBUTION 时使用)
+  contributionAmount: number;
+  // 目标比例 (仅当 portfolio.ruleType = ALLOCATION 时使用)
+  allocationPercent: number;
   createdAt: string;
   updatedAt: string;
   assets?: Asset[];
-  assetCount?: number;
 }
 
 export interface Asset {
   id: string;
   portfolioId: string;
+  subPortfolioId?: string; // 所属子组合ID，null表示直接在组合下
   symbol: string;
   name: string;
-  type: 'CN_STOCK_FUND' | 'US_STOCK_FUND' | 'BOND' | 'CRYPTO';
+  market: Market; // 交易所
   currency: string;
   quantity: number;
   costPrice: number;
   currentPrice: number;
+  // 定投金额 (仅当直接在组合下且 portfolio.ruleType = CONTRIBUTION 时使用)
+  contributionAmount: number;
+  // 目标比例 (仅当直接在组合下且 portfolio.ruleType = ALLOCATION 时使用)
+  allocationPercent: number;
   source: 'SYNC' | 'MANUAL';
   createdAt: string;
   updatedAt: string;

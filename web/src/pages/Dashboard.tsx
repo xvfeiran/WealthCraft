@@ -100,9 +100,11 @@ export default function Dashboard() {
                 >
                   <div className="card-header">
                     <h3>{portfolio.name}</h3>
-                    <span className={`risk-badge ${portfolio.riskLevel.toLowerCase()}`}>
-                      {portfolio.riskLevel === 'LOW' ? '低风险' : portfolio.riskLevel === 'MEDIUM' ? '中风险' : '高风险'}
-                    </span>
+                    {portfolio.ruleType && (
+                      <span className={`rule-badge ${portfolio.ruleType.toLowerCase()}`}>
+                        {portfolio.ruleType === 'CONTRIBUTION' ? '定投' : '固定比例'}
+                      </span>
+                    )}
                   </div>
 
                   {summary ? (
@@ -159,7 +161,8 @@ function CreatePortfolioModal({
   onCreated: () => void;
 }) {
   const [name, setName] = useState('');
-  const [riskLevel, setRiskLevel] = useState('MEDIUM');
+  const [ruleType, setRuleType] = useState<'CONTRIBUTION' | 'ALLOCATION' | ''>('');
+  const [contributionPeriod, setContributionPeriod] = useState<'DAILY' | 'WEEKLY' | 'MONTHLY'>('MONTHLY');
   const [baseCurrency, setBaseCurrency] = useState('CNY');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -170,7 +173,12 @@ function CreatePortfolioModal({
     setError('');
 
     try {
-      await portfolioApi.create({ name, riskLevel, baseCurrency });
+      await portfolioApi.create({
+        name,
+        baseCurrency,
+        ruleType: ruleType || undefined,
+        contributionPeriod: ruleType === 'CONTRIBUTION' ? contributionPeriod : undefined,
+      });
       onCreated();
     } catch (err: any) {
       setError(err.response?.data?.error || '创建失败');
@@ -200,17 +208,32 @@ function CreatePortfolioModal({
           </div>
 
           <div className="form-group">
-            <label htmlFor="riskLevel">风险等级</label>
+            <label htmlFor="ruleType">投资规则（可选）</label>
             <select
-              id="riskLevel"
-              value={riskLevel}
-              onChange={(e) => setRiskLevel(e.target.value)}
+              id="ruleType"
+              value={ruleType}
+              onChange={(e) => setRuleType(e.target.value as 'CONTRIBUTION' | 'ALLOCATION' | '')}
             >
-              <option value="LOW">低风险</option>
-              <option value="MEDIUM">中风险</option>
-              <option value="HIGH">高风险</option>
+              <option value="">不设置</option>
+              <option value="CONTRIBUTION">定投</option>
+              <option value="ALLOCATION">固定比例</option>
             </select>
           </div>
+
+          {ruleType === 'CONTRIBUTION' && (
+            <div className="form-group">
+              <label htmlFor="contributionPeriod">定投周期</label>
+              <select
+                id="contributionPeriod"
+                value={contributionPeriod}
+                onChange={(e) => setContributionPeriod(e.target.value as 'DAILY' | 'WEEKLY' | 'MONTHLY')}
+              >
+                <option value="DAILY">每日</option>
+                <option value="WEEKLY">每周</option>
+                <option value="MONTHLY">每月</option>
+              </select>
+            </div>
+          )}
 
           <div className="form-group">
             <label htmlFor="baseCurrency">基础币种</label>

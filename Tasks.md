@@ -1,98 +1,22 @@
+# 投资组合（UI与逻辑）
 
-# 一、系统数据源：
-## 美股 ETF
+创建/编辑投资组合，包含：
+**基础信息**
+- 组合名称
+- 基础币种
+**资产结构**
+- 子组合，可包含0~n个资产
+- 资产
+- 在子组合中或者直接在投资组合中添加资产时，可以通过代码、名称模糊匹配资产
+**投资规则**
+- 定投：可以设定定投周期，每个子组合/资产设定每次定投的金额
+- 固定比例：可以设定每项资产/子组合（不包括子组合下的资产）的比例，要求总和为100%
 
-* **接口地址**
-  `GET https://api.nasdaq.com/api/screener/etf`
+投资建议
+在投资组合概览页，如果该组合为固定比例，那么就可以根据当前的子组合和直接资产（非子组合内的资产）比例与设定比例的差值，推荐再平衡。
+可以切换再平衡方式：仅买再平衡/买卖再平衡
 
-* **返回结构示例**
-
-```json
-{
-  "data": {
-    "records": {
-      "totalrecords": 4433,
-      "limit": 50,
-      "offset": 0,
-      "data": {
-        "headers": {
-          "symbol": "SYMBOL",
-          "companyName": "NAME",
-          "lastSalePrice": "LAST PRICE",
-          "percentageChange": "% CHANGE",
-          "oneYearPercentagechange": "1 yr % CHANGE"
-        },
-        "rows": [
-          {
-            "symbol": "PALL",
-            "companyName": "abrdn Physical Palladium Shares ETF",
-            "lastSalePrice": "$160.30",
-            "percentageChange": "+0.36%",
-            "oneYearPercentage": "68.93%"
-          }
-        ]
-      }
-    }
-  }
-}
-```
-
-## 上交所-基金
-
-* **接口地址**
-`GET https://yunhq.sse.com.cn:32042/v1/sh1/list/exchange/fwr`
-
-* **返回结构示例**
-```
-{
-  "date": 20260205,
-  "time": 161457,
-  "total": 991,
-  "begin": 0,
-  "end": 991,
-  "list": [
-    ["501001", "财通精选", 1.4900],
-    ["501005", "精准医疗", 1.0180],
-    // ...更多基金
-  ]
-}
-```
-
-## 上交所-债券
-
-* **接口地址**
-`GET https://yunhq.sse.com.cn:32042/v1/sh1/list/exchange/all`
-
-* **返回结构示例**
-```
-{
-  "date": 20260205,
-  "time": 161614,
-  "total": 21198,
-  "begin": 0,
-  "end": 21198,
-  "list": [
-    ["010609", "06国债⑼", 100.0000],
-    ["010706", "07国债06", 100.0000],
-    // ...更多债券
-  ]
-}
-```
-
-## 实现要求
-
-  * 在 `app/src/services/marketDataService.ts` 中接入该 API
-  * 前端做相应修改
-  * 对于手动更新数据，需要增加新api的支持
-  * 将接口说明写入文档：
-
-    ```
-    doc/Third part api.md
-    ```
-
----
-
-# 二、投资组合（Portfolio）
+# 业务背景知识
 
 投资组合由**资产结构**与**投资规则**组成。
 

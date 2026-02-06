@@ -10,7 +10,7 @@ export class PortfolioController {
         throw new AppError('Unauthorized', 401);
       }
 
-      const { name, targetAllocation, riskLevel, baseCurrency } = req.body;
+      const { name, baseCurrency, ruleType, contributionPeriod } = req.body;
 
       if (!name) {
         throw new AppError('Portfolio name is required', 400);
@@ -19,9 +19,9 @@ export class PortfolioController {
       const portfolio = await portfolioService.create(
         req.user.userId,
         name,
-        targetAllocation,
-        riskLevel,
-        baseCurrency
+        baseCurrency,
+        ruleType,
+        contributionPeriod
       );
 
       res.status(201).json({
@@ -76,13 +76,13 @@ export class PortfolioController {
       }
 
       const { id } = req.params;
-      const { name, targetAllocation, riskLevel, baseCurrency } = req.body;
+      const { name, baseCurrency, ruleType, contributionPeriod } = req.body;
 
       const portfolio = await portfolioService.update(id, req.user.userId, {
         name,
-        targetAllocation,
-        riskLevel,
         baseCurrency,
+        ruleType,
+        contributionPeriod,
       });
 
       res.json({
@@ -125,6 +125,79 @@ export class PortfolioController {
       res.json({
         success: true,
         data: summary,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // 子组合操作
+  async createSubPortfolio(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) {
+        throw new AppError('Unauthorized', 401);
+      }
+
+      const { id } = req.params;
+      const { name, contributionAmount, allocationPercent } = req.body;
+
+      if (!name) {
+        throw new AppError('SubPortfolio name is required', 400);
+      }
+
+      const subPortfolio = await portfolioService.createSubPortfolio(id, req.user.userId, {
+        name,
+        contributionAmount,
+        allocationPercent,
+      });
+
+      res.status(201).json({
+        success: true,
+        data: subPortfolio,
+        message: 'SubPortfolio created',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateSubPortfolio(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) {
+        throw new AppError('Unauthorized', 401);
+      }
+
+      const { subId } = req.params;
+      const { name, contributionAmount, allocationPercent } = req.body;
+
+      const subPortfolio = await portfolioService.updateSubPortfolio(subId, req.user.userId, {
+        name,
+        contributionAmount,
+        allocationPercent,
+      });
+
+      res.json({
+        success: true,
+        data: subPortfolio,
+        message: 'SubPortfolio updated',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteSubPortfolio(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) {
+        throw new AppError('Unauthorized', 401);
+      }
+
+      const { subId } = req.params;
+      await portfolioService.deleteSubPortfolio(subId, req.user.userId);
+
+      res.json({
+        success: true,
+        message: 'SubPortfolio deleted',
       });
     } catch (error) {
       next(error);

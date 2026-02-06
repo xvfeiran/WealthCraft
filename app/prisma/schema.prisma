@@ -20,41 +20,69 @@ model User {
 }
 
 model Portfolio {
-  id               String           @id @default(uuid())
-  userId           String
-  name             String
-  targetAllocation String           @default("{}") // JSON string for asset type ratios
-  riskLevel        String           @default("MEDIUM") // LOW, MEDIUM, HIGH
-  baseCurrency     String           @default("CNY")
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  assets           Asset[]
-  recommendations  Recommendation[]
+  id                  String           @id @default(uuid())
+  userId              String
+  name                String
+  baseCurrency        String           @default("CNY")
+  // 投资规则类型: CONTRIBUTION(定投) | ALLOCATION(固定比例) - 二选一
+  ruleType            String?          // CONTRIBUTION, ALLOCATION
+  // 定投规则设置 (仅当 ruleType = CONTRIBUTION 时使用)
+  contributionPeriod  String?          // DAILY, WEEKLY, MONTHLY
+  // 固定比例规则: 各子组合/直接资产的比例存在各自记录中
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subPortfolios       SubPortfolio[]
+  assets              Asset[]          // 直接持有的资产（非子组合内）
+  recommendations     Recommendation[]
 
   @@index([userId])
 }
 
+// 子组合 - 不可嵌套，只能属于一个投资组合
+model SubPortfolio {
+  id                  String    @id @default(uuid())
+  portfolioId         String
+  name                String
+  // 定投规则: 每次定投金额 (仅当 portfolio.ruleType = CONTRIBUTION 时使用)
+  contributionAmount  Float     @default(0)
+  // 固定比例规则: 目标比例 (仅当 portfolio.ruleType = ALLOCATION 时使用)
+  allocationPercent   Float     @default(0)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  portfolio           Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  assets              Asset[]
+
+  @@index([portfolioId])
+}
+
 model Asset {
-  id              String           @id @default(uuid())
-  portfolioId     String
-  symbol          String
-  name            String
-  type            String           // CN_STOCK_FUND, US_STOCK_FUND, BOND, CRYPTO
-  currency        String           @default("CNY")
-  quantity        Float            @default(0)
-  costPrice       Float            @default(0)
-  currentPrice    Float            @default(0)
-  source          String           @default("MANUAL") // SYNC, MANUAL
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  portfolio       Portfolio        @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
-  transactions    Transaction[]
-  syncLogs        SyncLog[]
-  recommendations Recommendation[]
+  id                  String           @id @default(uuid())
+  portfolioId         String
+  subPortfolioId      String?          // 所属子组合ID，null表示直接在组合下
+  symbol              String
+  name                String
+  market              String           // 交易所: SSE, SSE_FUND, SSE_BOND, NASDAQ, NYSE, AMEX, US_ETF
+  currency            String           @default("CNY")
+  quantity            Float            @default(0)
+  costPrice           Float            @default(0)
+  currentPrice        Float            @default(0)
+  // 定投规则: 每次定投金额 (仅当直接在组合下且 portfolio.ruleType = CONTRIBUTION 时使用)
+  contributionAmount  Float            @default(0)
+  // 固定比例规则: 目标比例 (仅当直接在组合下且 portfolio.ruleType = ALLOCATION 时使用)
+  allocationPercent   Float            @default(0)
+  source              String           @default("MANUAL") // SYNC, MANUAL
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  portfolio           Portfolio        @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  subPortfolio        SubPortfolio?    @relation(fields: [subPortfolioId], references: [id], onDelete: SetNull)
+  transactions        Transaction[]
+  syncLogs            SyncLog[]
+  recommendations     Recommendation[]
 
   @@unique([portfolioId, symbol])
   @@index([portfolioId])
+  @@index([subPortfolioId])
 }
 
 model Transaction {

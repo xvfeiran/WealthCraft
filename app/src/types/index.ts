@@ -9,9 +9,14 @@ export interface AuthRequest extends Request {
   user?: JwtPayload;
 }
 
-export interface TargetAllocation {
-  [assetType: string]: number; // e.g., { "CN_STOCK_FUND": 0.4, "US_STOCK_FUND": 0.3, "BOND": 0.2, "CRYPTO": 0.1 }
-}
+// 投资规则类型
+export type PortfolioRuleType = 'CONTRIBUTION' | 'ALLOCATION';
+
+// 定投周期
+export type ContributionPeriod = 'DAILY' | 'WEEKLY' | 'MONTHLY';
+
+// 交易所/市场
+export type Market = 'SSE' | 'SSE_FUND' | 'SSE_BOND' | 'NASDAQ' | 'NYSE' | 'AMEX' | 'US_ETF';
 
 export interface PortfolioSummary {
   totalValue: number;

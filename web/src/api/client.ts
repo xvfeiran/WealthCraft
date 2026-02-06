@@ -54,15 +54,39 @@ export const portfolioApi = {
 
   getById: (id: string) => api.get<ApiResponse>(`/portfolios/${id}`),
 
-  create: (data: { name: string; targetAllocation?: Record<string, number>; riskLevel?: string; baseCurrency?: string }) =>
-    api.post<ApiResponse>('/portfolios', data),
+  create: (data: {
+    name: string;
+    baseCurrency?: string;
+    ruleType?: 'CONTRIBUTION' | 'ALLOCATION';
+    contributionPeriod?: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  }) => api.post<ApiResponse>('/portfolios', data),
 
-  update: (id: string, data: { name?: string; targetAllocation?: Record<string, number>; riskLevel?: string; baseCurrency?: string }) =>
-    api.put<ApiResponse>(`/portfolios/${id}`, data),
+  update: (id: string, data: {
+    name?: string;
+    baseCurrency?: string;
+    ruleType?: 'CONTRIBUTION' | 'ALLOCATION';
+    contributionPeriod?: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  }) => api.put<ApiResponse>(`/portfolios/${id}`, data),
 
   delete: (id: string) => api.delete<ApiResponse>(`/portfolios/${id}`),
 
   getSummary: (id: string) => api.get<ApiResponse>(`/portfolios/${id}/summary`),
+
+  // 子组合操作
+  createSubPortfolio: (portfolioId: string, data: {
+    name: string;
+    contributionAmount?: number;
+    allocationPercent?: number;
+  }) => api.post<ApiResponse>(`/portfolios/${portfolioId}/sub-portfolios`, data),
+
+  updateSubPortfolio: (portfolioId: string, subId: string, data: {
+    name?: string;
+    contributionAmount?: number;
+    allocationPercent?: number;
+  }) => api.put<ApiResponse>(`/portfolios/${portfolioId}/sub-portfolios/${subId}`, data),
+
+  deleteSubPortfolio: (portfolioId: string, subId: string) =>
+    api.delete<ApiResponse>(`/portfolios/${portfolioId}/sub-portfolios/${subId}`),
 };
 
 // Asset API
@@ -72,11 +96,29 @@ export const assetApi = {
 
   getById: (id: string) => api.get<ApiResponse>(`/assets/${id}`),
 
-  create: (portfolioId: string, data: { symbol: string; name: string; type: string; currency?: string; quantity?: number; costPrice?: number; currentPrice?: number; source?: string }) =>
-    api.post<ApiResponse>(`/assets/portfolio/${portfolioId}`, data),
+  create: (portfolioId: string, data: {
+    symbol: string;
+    name: string;
+    market: string;
+    subPortfolioId?: string;
+    currency?: string;
+    quantity?: number;
+    costPrice?: number;
+    currentPrice?: number;
+    contributionAmount?: number;
+    allocationPercent?: number;
+    source?: string;
+  }) => api.post<ApiResponse>(`/assets/portfolio/${portfolioId}`, data),
 
-  update: (id: string, data: { name?: string; quantity?: number; costPrice?: number; currentPrice?: number }) =>
-    api.put<ApiResponse>(`/assets/${id}`, data),
+  update: (id: string, data: {
+    name?: string;
+    subPortfolioId?: string | null;
+    quantity?: number;
+    costPrice?: number;
+    currentPrice?: number;
+    contributionAmount?: number;
+    allocationPercent?: number;
+  }) => api.put<ApiResponse>(`/assets/${id}`, data),
 
   delete: (id: string) => api.delete<ApiResponse>(`/assets/${id}`),
 

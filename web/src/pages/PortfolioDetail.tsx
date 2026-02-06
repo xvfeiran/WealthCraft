@@ -1,17 +1,20 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, TrendingUp, TrendingDown, RefreshCw, Search } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, TrendingUp, TrendingDown, RefreshCw, Search, FolderPlus, Edit2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { portfolioApi, assetApi, recommendationApi, instrumentApi } from '../api/client';
-import type { Portfolio, Asset, PortfolioSummary, Recommendation, MarketInstrument } from '../types';
+import type { Portfolio, Asset, PortfolioSummary, Recommendation, MarketInstrument, SubPortfolio } from '../types';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
-const ASSET_TYPE_LABELS: Record<string, string> = {
-  CN_STOCK_FUND: 'A股基金',
-  US_STOCK_FUND: '美股基金',
-  BOND: '债券',
-  CRYPTO: '加密货币',
+const MARKET_LABELS: Record<string, string> = {
+  SSE: '上交所-股票',
+  SSE_FUND: '上交所-基金',
+  SSE_BOND: '上交所-债券',
+  NASDAQ: 'NASDAQ',
+  NYSE: 'NYSE',
+  AMEX: 'AMEX',
+  US_ETF: '美股ETF',
 };
 
 export default function PortfolioDetail() {
@@ -23,6 +26,9 @@ export default function PortfolioDetail() {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddAssetModal, setShowAddAssetModal] = useState(false);
+  const [showSubPortfolioModal, setShowSubPortfolioModal] = useState(false);
+  const [editingSubPortfolio, setEditingSubPortfolio] = useState<SubPortfolio | null>(null);
+  const [addAssetToSubPortfolio, setAddAssetToSubPortfolio] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'recommendations'>('overview');
 
   useEffect(() => {
@@ -60,6 +66,17 @@ export default function PortfolioDetail() {
       loadData();
     } catch (error) {
       console.error('Failed to delete asset', error);
+    }
+  };
+
+  const handleDeleteSubPortfolio = async (subId: string) => {
+    if (!id) return;
+    if (!confirm('确定要删除此子组合吗？子组合内的资产将移至组合根目录。')) return;
+    try {
+      await portfolioApi.deleteSubPortfolio(id, subId);
+      loadData();
+    } catch (error) {
+      console.error('Failed to delete sub-portfolio', error);
     }
   };
 
@@ -104,7 +121,7 @@ export default function PortfolioDetail() {
   }
 
   const pieData = summary?.assetAllocation.map((item) => ({
-    name: ASSET_TYPE_LABELS[item.type] || item.type,
+    name: MARKET_LABELS[item.type] || item.type,
     value: item.value,
     percentage: item.percentage,
   })) || [];
@@ -117,9 +134,11 @@ export default function PortfolioDetail() {
             <ArrowLeft size={20} /> 返回
           </Link>
           <h1>{portfolio.name}</h1>
-          <span className={`risk-badge ${portfolio.riskLevel.toLowerCase()}`}>
-            {portfolio.riskLevel === 'LOW' ? '低风险' : portfolio.riskLevel === 'MEDIUM' ? '中风险' : '高风险'}
-          </span>
+          {portfolio.ruleType && (
+            <span className={`rule-badge ${portfolio.ruleType.toLowerCase()}`}>
+              {portfolio.ruleType === 'CONTRIBUTION' ? '定投' : '固定比例'}
+            </span>
+          )}
         </div>
         <div className="header-right">
           <button className="btn btn-danger" onClick={handleDeletePortfolio}>
@@ -165,7 +184,7 @@ export default function PortfolioDetail() {
           className={`tab ${activeTab === 'assets' ? 'active' : ''}`}
           onClick={() => setActiveTab('assets')}
         >
-          资产 ({assets.length})
+          资产 ({portfolio.assetCount || assets.length})
         </button>
         <button
           className={`tab ${activeTab === 'recommendations' ? 'active' : ''}`}
@@ -212,62 +231,162 @@ export default function PortfolioDetail() {
         {activeTab === 'assets' && (
           <div className="assets-section">
             <div className="section-header">
-              <h3>资产列表</h3>
-              <button className="btn btn-primary" onClick={() => setShowAddAssetModal(true)}>
-                <Plus size={16} /> 添加资产
-              </button>
-            </div>
-
-            {assets.length === 0 ? (
-              <div className="empty-state">
-                <p>还没有添加资产</p>
-                <button className="btn btn-primary" onClick={() => setShowAddAssetModal(true)}>
-                  添加第一个资产
+              <h3>资产结构</h3>
+              <div className="header-actions">
+                <button className="btn btn-secondary" onClick={() => setShowSubPortfolioModal(true)}>
+                  <FolderPlus size={16} /> 添加子组合
+                </button>
+                <button className="btn btn-primary" onClick={() => { setAddAssetToSubPortfolio(null); setShowAddAssetModal(true); }}>
+                  <Plus size={16} /> 添加资产
                 </button>
               </div>
-            ) : (
-              <table className="assets-table">
-                <thead>
-                  <tr>
-                    <th>名称</th>
-                    <th>代码</th>
-                    <th>类型</th>
-                    <th>数量</th>
-                    <th>成本价</th>
-                    <th>现价</th>
-                    <th>市值</th>
-                    <th>盈亏</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {assets.map((asset) => (
-                    <tr key={asset.id}>
-                      <td>{asset.name}</td>
-                      <td>{asset.symbol}</td>
-                      <td>{ASSET_TYPE_LABELS[asset.type] || asset.type}</td>
-                      <td>{asset.quantity}</td>
-                      <td>{formatCurrency(asset.costPrice, asset.currency)}</td>
-                      <td>{formatCurrency(asset.currentPrice, asset.currency)}</td>
-                      <td>{formatCurrency(asset.totalValue || 0, asset.currency)}</td>
-                      <td className={asset.profitLoss && asset.profitLoss >= 0 ? 'positive' : 'negative'}>
-                        {formatCurrency(asset.profitLoss || 0, asset.currency)}
-                        <br />
-                        <small>({formatPercent(asset.profitLossPercent || 0)})</small>
-                      </td>
-                      <td>
+            </div>
+
+            {/* 子组合列表 */}
+            {portfolio.subPortfolios && portfolio.subPortfolios.length > 0 && (
+              <div className="sub-portfolios-section">
+                {portfolio.subPortfolios.map((subPortfolio) => (
+                  <div key={subPortfolio.id} className="sub-portfolio-card">
+                    <div className="sub-portfolio-header">
+                      <div className="sub-portfolio-info">
+                        <h4>{subPortfolio.name}</h4>
+                        {portfolio.ruleType === 'ALLOCATION' && subPortfolio.allocationPercent > 0 && (
+                          <span className="allocation-badge">目标: {subPortfolio.allocationPercent}%</span>
+                        )}
+                        {portfolio.ruleType === 'CONTRIBUTION' && subPortfolio.contributionAmount > 0 && (
+                          <span className="contribution-badge">定投: {formatCurrency(subPortfolio.contributionAmount, portfolio.baseCurrency)}</span>
+                        )}
+                      </div>
+                      <div className="sub-portfolio-actions">
+                        <button
+                          className="btn btn-icon btn-secondary"
+                          onClick={() => { setAddAssetToSubPortfolio(subPortfolio.id); setShowAddAssetModal(true); }}
+                          title="添加资产到此子组合"
+                        >
+                          <Plus size={14} />
+                        </button>
+                        <button
+                          className="btn btn-icon btn-secondary"
+                          onClick={() => { setEditingSubPortfolio(subPortfolio); setShowSubPortfolioModal(true); }}
+                          title="编辑子组合"
+                        >
+                          <Edit2 size={14} />
+                        </button>
                         <button
                           className="btn btn-icon btn-danger"
-                          onClick={() => handleDeleteAsset(asset.id)}
+                          onClick={() => handleDeleteSubPortfolio(subPortfolio.id)}
+                          title="删除子组合"
                         >
                           <Trash2 size={14} />
                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                    </div>
+                    {subPortfolio.assets && subPortfolio.assets.length > 0 ? (
+                      <table className="assets-table sub-assets-table">
+                        <thead>
+                          <tr>
+                            <th>名称</th>
+                            <th>代码</th>
+                            <th>市场</th>
+                            <th>数量</th>
+                            <th>成本价</th>
+                            <th>现价</th>
+                            <th>市值</th>
+                            <th>盈亏</th>
+                            <th>操作</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {subPortfolio.assets.map((asset) => (
+                            <tr key={asset.id}>
+                              <td>{asset.name}</td>
+                              <td>{asset.symbol}</td>
+                              <td>{MARKET_LABELS[asset.market] || asset.market}</td>
+                              <td>{asset.quantity}</td>
+                              <td>{formatCurrency(asset.costPrice, asset.currency)}</td>
+                              <td>{formatCurrency(asset.currentPrice, asset.currency)}</td>
+                              <td>{formatCurrency((asset.quantity || 0) * (asset.currentPrice || 0), asset.currency)}</td>
+                              <td className={(asset.currentPrice - asset.costPrice) >= 0 ? 'positive' : 'negative'}>
+                                {formatCurrency((asset.quantity || 0) * (asset.currentPrice - asset.costPrice), asset.currency)}
+                              </td>
+                              <td>
+                                <button
+                                  className="btn btn-icon btn-danger"
+                                  onClick={() => handleDeleteAsset(asset.id)}
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div className="empty-sub-assets">暂无资产</div>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
+
+            {/* 直接资产（不在子组合内）*/}
+            <div className="direct-assets-section">
+              <h4>直接持有的资产</h4>
+              {assets.filter(a => !a.subPortfolioId).length === 0 ? (
+                <div className="empty-state">
+                  <p>还没有直接添加的资产</p>
+                  <button className="btn btn-primary" onClick={() => { setAddAssetToSubPortfolio(null); setShowAddAssetModal(true); }}>
+                    添加资产
+                  </button>
+                </div>
+              ) : (
+                <table className="assets-table">
+                  <thead>
+                    <tr>
+                      <th>名称</th>
+                      <th>代码</th>
+                      <th>市场</th>
+                      {portfolio.ruleType === 'ALLOCATION' && <th>目标比例</th>}
+                      {portfolio.ruleType === 'CONTRIBUTION' && <th>定投金额</th>}
+                      <th>数量</th>
+                      <th>成本价</th>
+                      <th>现价</th>
+                      <th>市值</th>
+                      <th>盈亏</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assets.filter(a => !a.subPortfolioId).map((asset) => (
+                      <tr key={asset.id}>
+                        <td>{asset.name}</td>
+                        <td>{asset.symbol}</td>
+                        <td>{MARKET_LABELS[asset.market] || asset.market}</td>
+                        {portfolio.ruleType === 'ALLOCATION' && <td>{asset.allocationPercent}%</td>}
+                        {portfolio.ruleType === 'CONTRIBUTION' && <td>{formatCurrency(asset.contributionAmount, portfolio.baseCurrency)}</td>}
+                        <td>{asset.quantity}</td>
+                        <td>{formatCurrency(asset.costPrice, asset.currency)}</td>
+                        <td>{formatCurrency(asset.currentPrice, asset.currency)}</td>
+                        <td>{formatCurrency(asset.totalValue || 0, asset.currency)}</td>
+                        <td className={asset.profitLoss && asset.profitLoss >= 0 ? 'positive' : 'negative'}>
+                          {formatCurrency(asset.profitLoss || 0, asset.currency)}
+                          <br />
+                          <small>({formatPercent(asset.profitLossPercent || 0)})</small>
+                        </td>
+                        <td>
+                          <button
+                            className="btn btn-icon btn-danger"
+                            onClick={() => handleDeleteAsset(asset.id)}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         )}
 
@@ -310,9 +429,26 @@ export default function PortfolioDetail() {
       {showAddAssetModal && id && (
         <AddAssetModal
           portfolioId={id}
-          onClose={() => setShowAddAssetModal(false)}
+          subPortfolioId={addAssetToSubPortfolio}
+          portfolio={portfolio}
+          onClose={() => { setShowAddAssetModal(false); setAddAssetToSubPortfolio(null); }}
           onAdded={() => {
             setShowAddAssetModal(false);
+            setAddAssetToSubPortfolio(null);
+            loadData();
+          }}
+        />
+      )}
+
+      {showSubPortfolioModal && id && (
+        <SubPortfolioModal
+          portfolioId={id}
+          portfolio={portfolio}
+          subPortfolio={editingSubPortfolio}
+          onClose={() => { setShowSubPortfolioModal(false); setEditingSubPortfolio(null); }}
+          onSaved={() => {
+            setShowSubPortfolioModal(false);
+            setEditingSubPortfolio(null);
             loadData();
           }}
         />
@@ -323,10 +459,14 @@ export default function PortfolioDetail() {
 
 function AddAssetModal({
   portfolioId,
+  subPortfolioId,
+  portfolio,
   onClose,
   onAdded,
 }: {
   portfolioId: string;
+  subPortfolioId: string | null;
+  portfolio: Portfolio;
   onClose: () => void;
   onAdded: () => void;
 }) {
@@ -339,12 +479,17 @@ function AddAssetModal({
 
   const [symbol, setSymbol] = useState('');
   const [name, setName] = useState('');
-  const [type, setType] = useState('CN_STOCK_FUND');
+  const [market, setMarket] = useState('SSE');
   const [currency, setCurrency] = useState('CNY');
   const [quantity, setQuantity] = useState('');
   const [costPrice, setCostPrice] = useState('');
+  const [allocationPercent, setAllocationPercent] = useState('');
+  const [contributionAmount, setContributionAmount] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // 只有直接添加到组合（非子组合）时才显示配置选项
+  const showRuleConfig = !subPortfolioId && portfolio.ruleType;
 
   // 搜索投资标的
   const handleSearch = useCallback(async () => {
@@ -368,16 +513,7 @@ function AddAssetModal({
     setName(instrument.name);
     setCurrency(instrument.currency);
     setCostPrice(instrument.lastPrice.toString());
-
-    // 根据市场和类型设置资产类型
-    const usStockExchanges = ['NASDAQ', 'NYSE', 'AMEX', 'US_ETF'];
-    if (usStockExchanges.includes(instrument.market)) {
-      setType('US_STOCK_FUND');
-    } else if (instrument.market === 'SSE_BOND') {
-      setType('BOND');
-    } else {
-      setType('CN_STOCK_FUND');
-    }
+    setMarket(instrument.market);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -389,11 +525,14 @@ function AddAssetModal({
       await assetApi.create(portfolioId, {
         symbol,
         name,
-        type,
+        market,
+        subPortfolioId: subPortfolioId || undefined,
         currency,
         quantity: parseFloat(quantity) || 0,
         costPrice: parseFloat(costPrice) || 0,
         currentPrice: parseFloat(costPrice) || 0,
+        allocationPercent: parseFloat(allocationPercent) || 0,
+        contributionAmount: parseFloat(contributionAmount) || 0,
         source: selectedInstrument ? 'SYNC' : 'MANUAL',
       });
       onAdded();
@@ -411,20 +550,14 @@ function AddAssetModal({
     }).format(price);
   };
 
-  const MARKET_LABELS: Record<string, string> = {
-    SSE: '上交所-股票',
-    SSE_FUND: '上交所-基金',
-    SSE_BOND: '上交所-债券',
-    NASDAQ: 'NASDAQ',
-    NYSE: 'NYSE',
-    AMEX: 'AMEX',
-    US_ETF: '美股ETF',
-  };
+  const subPortfolioName = subPortfolioId
+    ? portfolio.subPortfolios?.find(sp => sp.id === subPortfolioId)?.name
+    : null;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal modal-large" onClick={(e) => e.stopPropagation()}>
-        <h3>添加资产</h3>
+        <h3>添加资产{subPortfolioName ? ` 到「${subPortfolioName}」` : ''}</h3>
 
         <div className="mode-tabs">
           <button
@@ -556,12 +689,15 @@ function AddAssetModal({
 
             <div className="form-row">
               <div className="form-group">
-                <label htmlFor="type">资产类型</label>
-                <select id="type" value={type} onChange={(e) => setType(e.target.value)}>
-                  <option value="CN_STOCK_FUND">A股基金</option>
-                  <option value="US_STOCK_FUND">美股基金</option>
-                  <option value="BOND">债券</option>
-                  <option value="CRYPTO">加密货币</option>
+                <label htmlFor="market">市场</label>
+                <select id="market" value={market} onChange={(e) => setMarket(e.target.value)}>
+                  <option value="SSE">上交所-股票</option>
+                  <option value="SSE_FUND">上交所-基金</option>
+                  <option value="SSE_BOND">上交所-债券</option>
+                  <option value="NASDAQ">NASDAQ</option>
+                  <option value="NYSE">NYSE</option>
+                  <option value="AMEX">AMEX</option>
+                  <option value="US_ETF">美股ETF</option>
                 </select>
               </div>
               <div className="form-group">
@@ -598,6 +734,37 @@ function AddAssetModal({
               </div>
             </div>
 
+            {showRuleConfig && portfolio.ruleType === 'ALLOCATION' && (
+              <div className="form-group">
+                <label htmlFor="allocationPercent">目标比例 (%)</label>
+                <input
+                  type="number"
+                  id="allocationPercent"
+                  value={allocationPercent}
+                  onChange={(e) => setAllocationPercent(e.target.value)}
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  placeholder="0"
+                />
+              </div>
+            )}
+
+            {showRuleConfig && portfolio.ruleType === 'CONTRIBUTION' && (
+              <div className="form-group">
+                <label htmlFor="contributionAmount">每次定投金额 ({portfolio.baseCurrency})</label>
+                <input
+                  type="number"
+                  id="contributionAmount"
+                  value={contributionAmount}
+                  onChange={(e) => setContributionAmount(e.target.value)}
+                  step="0.01"
+                  min="0"
+                  placeholder="0"
+                />
+              </div>
+            )}
+
             <div className="modal-actions">
               <button type="button" className="btn btn-secondary" onClick={onClose}>
                 取消
@@ -608,6 +775,123 @@ function AddAssetModal({
             </div>
           </form>
         )}
+      </div>
+    </div>
+  );
+}
+
+function SubPortfolioModal({
+  portfolioId,
+  portfolio,
+  subPortfolio,
+  onClose,
+  onSaved,
+}: {
+  portfolioId: string;
+  portfolio: Portfolio;
+  subPortfolio: SubPortfolio | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(subPortfolio?.name || '');
+  const [allocationPercent, setAllocationPercent] = useState(
+    subPortfolio?.allocationPercent?.toString() || ''
+  );
+  const [contributionAmount, setContributionAmount] = useState(
+    subPortfolio?.contributionAmount?.toString() || ''
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const isEditing = !!subPortfolio;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = {
+        name,
+        allocationPercent: parseFloat(allocationPercent) || 0,
+        contributionAmount: parseFloat(contributionAmount) || 0,
+      };
+
+      if (isEditing) {
+        await portfolioApi.updateSubPortfolio(portfolioId, subPortfolio.id, data);
+      } else {
+        await portfolioApi.createSubPortfolio(portfolioId, data);
+      }
+      onSaved();
+    } catch (err: any) {
+      setError(err.response?.data?.error || '保存失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>{isEditing ? '编辑子组合' : '创建子组合'}</h3>
+
+        {error && <div className="error-message">{error}</div>}
+
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label htmlFor="subName">子组合名称</label>
+            <input
+              type="text"
+              id="subName"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              placeholder="例如：A股组合、债券组合"
+            />
+          </div>
+
+          {portfolio.ruleType === 'ALLOCATION' && (
+            <div className="form-group">
+              <label htmlFor="subAllocation">目标比例 (%)</label>
+              <input
+                type="number"
+                id="subAllocation"
+                value={allocationPercent}
+                onChange={(e) => setAllocationPercent(e.target.value)}
+                step="0.1"
+                min="0"
+                max="100"
+                placeholder="0"
+              />
+              <small className="form-hint">该子组合在整个投资组合中的目标占比</small>
+            </div>
+          )}
+
+          {portfolio.ruleType === 'CONTRIBUTION' && (
+            <div className="form-group">
+              <label htmlFor="subContribution">每次定投金额 ({portfolio.baseCurrency})</label>
+              <input
+                type="number"
+                id="subContribution"
+                value={contributionAmount}
+                onChange={(e) => setContributionAmount(e.target.value)}
+                step="0.01"
+                min="0"
+                placeholder="0"
+              />
+              <small className="form-hint">每次定投时分配给该子组合的金额</small>
+            </div>
+          )}
+
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
+              取消
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? '保存中...' : isEditing ? '保存' : '创建'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

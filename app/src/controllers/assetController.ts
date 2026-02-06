@@ -30,20 +30,35 @@ export class AssetController {
       }
 
       const { portfolioId } = req.params;
-      const { symbol, name, type, currency, quantity, costPrice, currentPrice, source } = req.body;
+      const {
+        symbol,
+        name,
+        market,
+        subPortfolioId,
+        currency,
+        quantity,
+        costPrice,
+        currentPrice,
+        contributionAmount,
+        allocationPercent,
+        source,
+      } = req.body;
 
-      if (!symbol || !name || !type) {
-        throw new AppError('Symbol, name, and type are required', 400);
+      if (!symbol || !name || !market) {
+        throw new AppError('Symbol, name, and market are required', 400);
       }
 
       const asset = await assetService.create(portfolioId, req.user.userId, {
         symbol,
         name,
-        type,
+        market,
+        subPortfolioId,
         currency,
         quantity,
         costPrice,
         currentPrice,
+        contributionAmount,
+        allocationPercent,
         source,
       });
 
@@ -64,13 +79,17 @@ export class AssetController {
       }
 
       const { id } = req.params;
-      const { name, quantity, costPrice, currentPrice } = req.body;
+      const { name, subPortfolioId, quantity, costPrice, currentPrice, contributionAmount, allocationPercent } =
+        req.body;
 
       const asset = await assetService.update(id, req.user.userId, {
         name,
+        subPortfolioId,
         quantity,
         costPrice,
         currentPrice,
+        contributionAmount,
+        allocationPercent,
       });
 
       res.json({
