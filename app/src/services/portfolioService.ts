@@ -42,13 +42,11 @@ export class PortfolioService {
     });
 
     return portfolios.map((p) => {
-      const subPortfolioAssetCount = p.subPortfolios.reduce(
-        (sum, sp) => sum + sp.assets.length,
-        0
-      );
+      // p.assets includes ALL assets (both direct and in sub-portfolios)
+      // So we just count p.assets.length, not add subPortfolio assets again
       return {
         ...p,
-        assetCount: p.assets.length + subPortfolioAssetCount,
+        assetCount: p.assets.length,
       };
     });
   }

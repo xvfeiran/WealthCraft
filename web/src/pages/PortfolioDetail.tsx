@@ -134,28 +134,24 @@ export default function PortfolioDetail() {
   };
 
   // Calculate total portfolio value and current allocations
+  // Note: `assets` array contains ALL assets (both direct and in sub-portfolios)
   const calculateAllocations = () => {
     let totalValue = 0;
     const subPortfolioValues: Record<string, number> = {};
     let directAssetsValue = 0;
 
-    // Sum all assets
+    // Sum all assets from the flat assets array (already includes all assets)
     assets.forEach((asset) => {
       const assetValue = (asset.quantity || 0) * (asset.currentPrice || 0);
       totalValue += assetValue;
-      if (!asset.subPortfolioId) {
+
+      if (asset.subPortfolioId) {
+        // Asset belongs to a sub-portfolio
+        subPortfolioValues[asset.subPortfolioId] = (subPortfolioValues[asset.subPortfolioId] || 0) + assetValue;
+      } else {
+        // Direct asset
         directAssetsValue += assetValue;
       }
-    });
-
-    // Calculate sub-portfolio values from nested assets
-    portfolio?.subPortfolios?.forEach((sub) => {
-      let subValue = 0;
-      sub.assets?.forEach((asset) => {
-        subValue += (asset.quantity || 0) * (asset.currentPrice || 0);
-      });
-      subPortfolioValues[sub.id] = subValue;
-      totalValue += subValue;
     });
 
     return {
@@ -314,16 +310,16 @@ export default function PortfolioDetail() {
                     <div className="sub-portfolio-header">
                       <div className="sub-portfolio-info">
                         <h4>{subPortfolio.name}</h4>
-                        {allocations && (
-                          <span className="current-allocation-badge">
-                            当前: {allocations.getSubPortfolioPercent(subPortfolio.id).toFixed(1)}%
-                          </span>
-                        )}
                         {portfolio.ruleType === 'ALLOCATION' && subPortfolio.allocationPercent > 0 && (
                           <span className="allocation-badge">目标: {subPortfolio.allocationPercent}%</span>
                         )}
                         {portfolio.ruleType === 'CONTRIBUTION' && subPortfolio.contributionAmount > 0 && (
                           <span className="contribution-badge">定投: {formatCurrency(subPortfolio.contributionAmount, portfolio.baseCurrency)}</span>
+                        )}
+                        {allocations && (
+                          <span className="allocation-badge">
+                            当前: {allocations.getSubPortfolioPercent(subPortfolio.id).toFixed(1)}%
+                          </span>
                         )}
                       </div>
                       <div className="sub-portfolio-actions">
@@ -357,7 +353,6 @@ export default function PortfolioDetail() {
                             <th>名称</th>
                             <th>代码</th>
                             <th>市场</th>
-                            <th>当前比例</th>
                             <th>数量</th>
                             <th>成本价</th>
                             <th>现价</th>
@@ -367,15 +362,11 @@ export default function PortfolioDetail() {
                           </tr>
                         </thead>
                         <tbody>
-                          {subPortfolio.assets.map((asset) => {
-                            const assetValue = (asset.quantity || 0) * (asset.currentPrice || 0);
-                            const currentPercent = allocations?.getAssetPercent(assetValue) || 0;
-                            return (
+                          {subPortfolio.assets.map((asset) => (
                             <tr key={asset.id}>
                               <td>{asset.name}</td>
                               <td>{asset.symbol}</td>
                               <td>{MARKET_LABELS[asset.market] || asset.market}</td>
-                              <td>{currentPercent.toFixed(1)}%</td>
                               <td>{asset.quantity}</td>
                               <td>{formatCurrency(asset.costPrice, asset.currency)}</td>
                               <td>{formatCurrency(asset.currentPrice, asset.currency)}</td>
@@ -418,8 +409,7 @@ export default function PortfolioDetail() {
                                 </div>
                               </td>
                             </tr>
-                            );
-                          })}
+                          ))}
                         </tbody>
                       </table>
                     ) : (
@@ -447,9 +437,9 @@ export default function PortfolioDetail() {
                       <th>名称</th>
                       <th>代码</th>
                       <th>市场</th>
-                      <th>当前比例</th>
                       {portfolio.ruleType === 'ALLOCATION' && <th>目标比例</th>}
                       {portfolio.ruleType === 'CONTRIBUTION' && <th>定投金额</th>}
+                      <th>当前比例</th>
                       <th>数量</th>
                       <th>成本价</th>
                       <th>现价</th>
@@ -467,9 +457,9 @@ export default function PortfolioDetail() {
                         <td>{asset.name}</td>
                         <td>{asset.symbol}</td>
                         <td>{MARKET_LABELS[asset.market] || asset.market}</td>
-                        <td>{currentPercent.toFixed(1)}%</td>
                         {portfolio.ruleType === 'ALLOCATION' && <td>{asset.allocationPercent}%</td>}
                         {portfolio.ruleType === 'CONTRIBUTION' && <td>{formatCurrency(asset.contributionAmount, portfolio.baseCurrency)}</td>}
+                        <td>{currentPercent.toFixed(1)}%</td>
                         <td>{asset.quantity}</td>
                         <td>{formatCurrency(asset.costPrice, asset.currency)}</td>
                         <td>{formatCurrency(asset.currentPrice, asset.currency)}</td>
