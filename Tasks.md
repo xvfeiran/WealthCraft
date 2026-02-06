@@ -131,9 +131,9 @@
 
 ---
 
-## 再平衡模式
+### 再平衡模式
 
-### 1. 卖出再平衡（Sell-based Rebalancing）
+#### 1. 卖出再平衡（Sell-based Rebalancing）
 
 不使用新资金，仅通过买卖现有资产使组合回到目标比例。
 
@@ -152,7 +152,7 @@
 
 ---
 
-### 2. 买入再平衡（Contribution-based Rebalancing）
+#### 2. 买入再平衡（Contribution-based Rebalancing）
 
 仅使用本次投入资金，不卖出现有资产。
 
@@ -176,13 +176,17 @@
 
 ---
 
-## 特殊情况
+### 特殊情况
 
-### 1. 只有 Contribution Rule
+#### 1. 只有 Contribution Rule
 
 * 每次按预设投资比例分配投入金额。
 
-### 2. 只有 Allocation Rule
+#### 2. 只有 Allocation Rule
 
 * 仅提供卖出再平衡建议。
 * 不计算买入金额。
+
+## 组合操作
+- 创建组合后可以添加资产，此时可以写入持仓成本/数量/手续费，也可以不写入
+- 可以在已有资产上有新的操作，如：买入/卖出，填入对应的价格/时间/手续费
