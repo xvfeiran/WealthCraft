@@ -17,6 +17,7 @@ model User {
   updatedAt             DateTime       @updatedAt
   portfolios            Portfolio[]
   notifications         Notification[]
+  channels              Channel[]
 }
 
 model Portfolio {
@@ -88,14 +89,32 @@ model Asset {
 model Transaction {
   id        String   @id @default(uuid())
   assetId   String
+  channelId String?  // 交易渠道
   type      String   // BUY, SELL, DIVIDEND, FEE
   quantity  Float
   price     Float
   fee       Float    @default(0)
   timestamp DateTime @default(now())
   asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  channel   Channel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
 
   @@index([assetId])
+  @@index([channelId])
+}
+
+// 交易渠道配置
+model Channel {
+  id           String        @id @default(uuid())
+  userId       String
+  name         String        // 渠道名称，如：南方基金、老虎证券、IBKR
+  currency     String        @default("CNY") // 账户币种
+  account      String?       // 账号（可选）
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@index([userId])
 }
 
 model Recommendation {

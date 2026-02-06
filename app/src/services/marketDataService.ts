@@ -140,8 +140,10 @@ export class MarketDataService {
       });
 
       // Group by market
-      const usAssets = assets.filter((a) => a.type === 'US_STOCK_FUND');
-      const cnAssets = assets.filter((a) => a.type === 'CN_STOCK_FUND');
+      const usMarkets = ['NASDAQ', 'NYSE', 'AMEX', 'US_ETF'];
+      const cnMarkets = ['SSE', 'SSE_FUND', 'SSE_BOND'];
+      const usAssets = assets.filter((a) => usMarkets.includes(a.market));
+      const cnAssets = assets.filter((a) => cnMarkets.includes(a.market));
 
       // Fetch market data from all US exchanges
       const usStocks = await this.fetchAllUSStocks();

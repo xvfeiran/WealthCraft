@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, TrendingUp, TrendingDown, RefreshCw, Search, FolderPlus, Edit2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, TrendingUp, TrendingDown, RefreshCw, Search, FolderPlus, Edit2, DollarSign, FileText } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-import { portfolioApi, assetApi, recommendationApi, instrumentApi } from '../api/client';
-import type { Portfolio, Asset, PortfolioSummary, Recommendation, MarketInstrument, SubPortfolio } from '../types';
+import { portfolioApi, assetApi, recommendationApi, instrumentApi, transactionApi, channelApi } from '../api/client';
+import type { Portfolio, Asset, PortfolioSummary, Recommendation, MarketInstrument, SubPortfolio, Transaction, Channel, Pagination } from '../types';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
@@ -30,6 +30,10 @@ export default function PortfolioDetail() {
   const [editingSubPortfolio, setEditingSubPortfolio] = useState<SubPortfolio | null>(null);
   const [addAssetToSubPortfolio, setAddAssetToSubPortfolio] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'recommendations'>('overview');
+  const [showTransactionModal, setShowTransactionModal] = useState(false);
+  const [transactionAsset, setTransactionAsset] = useState<Asset | null>(null);
+  const [showAssetDetailModal, setShowAssetDetailModal] = useState(false);
+  const [detailAsset, setDetailAsset] = useState<Asset | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -98,6 +102,16 @@ export default function PortfolioDetail() {
     } catch (error) {
       console.error('Failed to delete portfolio', error);
     }
+  };
+
+  const handleOpenTransaction = (asset: Asset) => {
+    setTransactionAsset(asset);
+    setShowTransactionModal(true);
+  };
+
+  const handleOpenAssetDetail = (asset: Asset) => {
+    setDetailAsset(asset);
+    setShowAssetDetailModal(true);
   };
 
   const formatCurrency = (value: number, currency: string = 'CNY') => {
@@ -310,12 +324,29 @@ export default function PortfolioDetail() {
                                 {formatCurrency((asset.quantity || 0) * (asset.currentPrice - asset.costPrice), asset.currency)}
                               </td>
                               <td>
-                                <button
-                                  className="btn btn-icon btn-danger"
-                                  onClick={() => handleDeleteAsset(asset.id)}
-                                >
-                                  <Trash2 size={14} />
-                                </button>
+                                <div className="action-buttons">
+                                  <button
+                                    className="btn btn-icon btn-secondary"
+                                    onClick={() => handleOpenTransaction(asset)}
+                                    title="买入/卖出"
+                                  >
+                                    <DollarSign size={14} />
+                                  </button>
+                                  <button
+                                    className="btn btn-icon btn-secondary"
+                                    onClick={() => handleOpenAssetDetail(asset)}
+                                    title="明细"
+                                  >
+                                    <FileText size={14} />
+                                  </button>
+                                  <button
+                                    className="btn btn-icon btn-danger"
+                                    onClick={() => handleDeleteAsset(asset.id)}
+                                    title="删除"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -374,12 +405,29 @@ export default function PortfolioDetail() {
                           <small>({formatPercent(asset.profitLossPercent || 0)})</small>
                         </td>
                         <td>
-                          <button
-                            className="btn btn-icon btn-danger"
-                            onClick={() => handleDeleteAsset(asset.id)}
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          <div className="action-buttons">
+                            <button
+                              className="btn btn-icon btn-secondary"
+                              onClick={() => handleOpenTransaction(asset)}
+                              title="买入/卖出"
+                            >
+                              <DollarSign size={14} />
+                            </button>
+                            <button
+                              className="btn btn-icon btn-secondary"
+                              onClick={() => handleOpenAssetDetail(asset)}
+                              title="明细"
+                            >
+                              <FileText size={14} />
+                            </button>
+                            <button
+                              className="btn btn-icon btn-danger"
+                              onClick={() => handleDeleteAsset(asset.id)}
+                              title="删除"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -450,6 +498,30 @@ export default function PortfolioDetail() {
             setShowSubPortfolioModal(false);
             setEditingSubPortfolio(null);
             loadData();
+          }}
+        />
+      )}
+
+      {showTransactionModal && transactionAsset && (
+        <TransactionModal
+          asset={transactionAsset}
+          onClose={() => { setShowTransactionModal(false); setTransactionAsset(null); }}
+          onSaved={() => {
+            setShowTransactionModal(false);
+            setTransactionAsset(null);
+            loadData();
+          }}
+        />
+      )}
+
+      {showAssetDetailModal && detailAsset && (
+        <AssetDetailModal
+          asset={detailAsset}
+          onClose={() => { setShowAssetDetailModal(false); setDetailAsset(null); }}
+          onTransaction={() => {
+            setShowAssetDetailModal(false);
+            setTransactionAsset(detailAsset);
+            setShowTransactionModal(true);
           }}
         />
       )}
@@ -892,6 +964,368 @@ function SubPortfolioModal({
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+function TransactionModal({
+  asset,
+  onClose,
+  onSaved,
+}: {
+  asset: Asset;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [type, setType] = useState<'BUY' | 'SELL'>('BUY');
+  const [quantity, setQuantity] = useState('');
+  const [price, setPrice] = useState(asset.currentPrice?.toString() || '');
+  const [fee, setFee] = useState('');
+  const [timestamp, setTimestamp] = useState(new Date().toISOString().slice(0, 16));
+  const [channelId, setChannelId] = useState('');
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    loadChannels();
+  }, []);
+
+  const loadChannels = async () => {
+    try {
+      const res = await channelApi.getAllSimple();
+      setChannels(res.data.data || []);
+    } catch (err) {
+      console.error('Failed to load channels', err);
+    }
+  };
+
+  const formatCurrency = (value: number, currency: string = 'CNY') => {
+    return new Intl.NumberFormat('zh-CN', {
+      style: 'currency',
+      currency: currency,
+    }).format(value);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      await transactionApi.create(asset.id, {
+        type,
+        quantity: parseFloat(quantity),
+        price: parseFloat(price),
+        fee: parseFloat(fee) || 0,
+        timestamp: new Date(timestamp).toISOString(),
+        channelId: channelId || undefined,
+      });
+      onSaved();
+    } catch (err: any) {
+      setError(err.response?.data?.error || '操作失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const totalAmount = (parseFloat(quantity) || 0) * (parseFloat(price) || 0) + (parseFloat(fee) || 0);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal transaction-modal" onClick={(e) => e.stopPropagation()}>
+        <h3>{asset.name} ({asset.symbol})</h3>
+
+        <div className="transaction-type-tabs">
+          <button
+            type="button"
+            className={`type-tab ${type === 'BUY' ? 'active buy' : ''}`}
+            onClick={() => setType('BUY')}
+          >
+            买入
+          </button>
+          <button
+            type="button"
+            className={`type-tab ${type === 'SELL' ? 'active sell' : ''}`}
+            onClick={() => setType('SELL')}
+          >
+            卖出
+          </button>
+        </div>
+
+        {error && <div className="error-message">{error}</div>}
+
+        <form onSubmit={handleSubmit}>
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="txPrice">单价</label>
+              <input
+                type="number"
+                id="txPrice"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                step="0.01"
+                required
+                placeholder="0.00"
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="txQuantity">数量</label>
+              <input
+                type="number"
+                id="txQuantity"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                step="0.01"
+                required
+                placeholder="0"
+              />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="txFee">费用</label>
+              <input
+                type="number"
+                id="txFee"
+                value={fee}
+                onChange={(e) => setFee(e.target.value)}
+                step="0.01"
+                placeholder="0.00"
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="txTimestamp">时间</label>
+              <input
+                type="datetime-local"
+                id="txTimestamp"
+                value={timestamp}
+                onChange={(e) => setTimestamp(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="txChannel">渠道</label>
+            <select
+              id="txChannel"
+              value={channelId}
+              onChange={(e) => setChannelId(e.target.value)}
+            >
+              <option value="">不选择渠道</option>
+              {channels.map((ch) => (
+                <option key={ch.id} value={ch.id}>
+                  {ch.name} ({ch.currency})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label>总金额</label>
+            <div className="summary-item">
+              <span className="value">{formatCurrency(totalAmount, asset.currency)}</span>
+            </div>
+          </div>
+
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
+              取消
+            </button>
+            <button
+              type="submit"
+              className={`btn ${type === 'BUY' ? 'btn-primary' : 'btn-danger'}`}
+              disabled={loading}
+            >
+              {loading ? '处理中...' : type === 'BUY' ? '确认买入' : '确认卖出'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function AssetDetailModal({
+  asset,
+  onClose,
+  onTransaction,
+}: {
+  asset: Asset;
+  onClose: () => void;
+  onTransaction: () => void;
+}) {
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [pagination, setPagination] = useState<Pagination | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadTransactions();
+  }, []);
+
+  const loadTransactions = async (page = 1) => {
+    setLoading(true);
+    try {
+      const res = await transactionApi.getByAsset(asset.id, page, 10);
+      setTransactions(res.data.data || []);
+      setPagination(res.data.pagination);
+    } catch (err) {
+      console.error('Failed to load transactions', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteTransaction = async (txId: string) => {
+    if (!confirm('删除交易记录后不会自动调整资产数据，确定要删除吗？')) return;
+    try {
+      await transactionApi.delete(txId);
+      loadTransactions(pagination?.page || 1);
+    } catch (err) {
+      console.error('Failed to delete transaction', err);
+    }
+  };
+
+  const formatCurrency = (value: number, currency: string = 'CNY') => {
+    return new Intl.NumberFormat('zh-CN', {
+      style: 'currency',
+      currency: currency,
+    }).format(value);
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleString('zh-CN');
+  };
+
+  const TYPE_LABELS: Record<string, string> = {
+    BUY: '买入',
+    SELL: '卖出',
+    DIVIDEND: '分红',
+    FEE: '费用',
+  };
+
+  const totalValue = (asset.quantity || 0) * (asset.currentPrice || 0);
+  const totalCost = (asset.quantity || 0) * (asset.costPrice || 0);
+  const profitLoss = totalValue - totalCost;
+  const profitLossPercent = totalCost > 0 ? (profitLoss / totalCost) * 100 : 0;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal asset-detail-modal" onClick={(e) => e.stopPropagation()}>
+        <h3>{asset.name} ({asset.symbol})</h3>
+
+        <div className="asset-summary">
+          <div className="summary-item">
+            <span className="label">持仓数量</span>
+            <span className="value">{asset.quantity}</span>
+          </div>
+          <div className="summary-item">
+            <span className="label">成本价</span>
+            <span className="value">{formatCurrency(asset.costPrice, asset.currency)}</span>
+          </div>
+          <div className="summary-item">
+            <span className="label">现价</span>
+            <span className="value">{formatCurrency(asset.currentPrice, asset.currency)}</span>
+          </div>
+          <div className="summary-item">
+            <span className="label">总市值</span>
+            <span className="value">{formatCurrency(totalValue, asset.currency)}</span>
+          </div>
+          <div className="summary-item">
+            <span className="label">总成本</span>
+            <span className="value">{formatCurrency(totalCost, asset.currency)}</span>
+          </div>
+          <div className="summary-item">
+            <span className="label">盈亏</span>
+            <span className={`value ${profitLoss >= 0 ? 'positive' : 'negative'}`}>
+              {formatCurrency(profitLoss, asset.currency)} ({profitLossPercent >= 0 ? '+' : ''}{profitLossPercent.toFixed(2)}%)
+            </span>
+          </div>
+        </div>
+
+        <div className="section-header">
+          <h4>交易记录</h4>
+          <button className="btn btn-primary btn-sm" onClick={onTransaction}>
+            <Plus size={14} /> 新增交易
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="loading">加载中...</div>
+        ) : transactions.length === 0 ? (
+          <div className="empty-state">
+            <p>暂无交易记录</p>
+          </div>
+        ) : (
+          <>
+            <div className="transaction-list">
+              {transactions.map((tx) => (
+                <div key={tx.id} className="transaction-item">
+                  <div className="transaction-left">
+                    <span className={`transaction-type-badge ${tx.type.toLowerCase()}`}>
+                      {TYPE_LABELS[tx.type]}
+                    </span>
+                    <div>
+                      <div className="transaction-detail">
+                        {tx.quantity} x {formatCurrency(tx.price, asset.currency)}
+                        {tx.fee > 0 && ` (费用: ${formatCurrency(tx.fee, asset.currency)})`}
+                      </div>
+                      {tx.channel && (
+                        <div className="transaction-channel">渠道: {tx.channel.name}</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="transaction-right">
+                    <div className="transaction-amount">
+                      {formatCurrency(tx.quantity * tx.price + tx.fee, asset.currency)}
+                    </div>
+                    <div className="transaction-date">{formatDate(tx.timestamp)}</div>
+                  </div>
+                  <div className="transaction-actions">
+                    <button
+                      className="btn btn-icon btn-danger"
+                      onClick={() => handleDeleteTransaction(tx.id)}
+                      title="删除"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {pagination && pagination.totalPages > 1 && (
+              <div className="pagination">
+                <button
+                  className="btn btn-secondary btn-sm"
+                  disabled={pagination.page <= 1}
+                  onClick={() => loadTransactions(pagination.page - 1)}
+                >
+                  上一页
+                </button>
+                <span className="page-info">
+                  {pagination.page} / {pagination.totalPages}
+                </span>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  disabled={pagination.page >= pagination.totalPages}
+                  onClick={() => loadTransactions(pagination.page + 1)}
+                >
+                  下一页
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            关闭
+          </button>
+        </div>
       </div>
     </div>
   );

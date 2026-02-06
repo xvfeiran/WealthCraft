@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, Wallet, Settings } from 'lucide-react';
 import { portfolioApi } from '../api/client';
 import type { Portfolio, PortfolioSummary } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -64,6 +64,9 @@ export default function Dashboard() {
           <span className="user-email">{user?.email}</span>
         </div>
         <div className="header-right">
+          <Link to="/channels" className="btn btn-secondary">
+            <Settings size={16} /> 渠道管理
+          </Link>
           <button className="btn btn-secondary" onClick={logout}>
             退出登录
           </button>

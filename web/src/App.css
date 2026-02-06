@@ -907,6 +907,276 @@ body {
   color: var(--gray-500);
 }
 
+/* Header Right */
+.header-right {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* Page Header */
+.page-header {
+  background: white;
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.page-header .header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.page-header h1 {
+  font-size: 20px;
+  color: var(--gray-900);
+}
+
+.back-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  color: var(--gray-600);
+  transition: background 0.2s;
+}
+
+.back-button:hover {
+  background: var(--gray-100);
+  color: var(--gray-800);
+}
+
+.page-main {
+  padding: 24px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+/* Data Table */
+.data-table {
+  width: 100%;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-collapse: collapse;
+  overflow: hidden;
+}
+
+.data-table th,
+.data-table td {
+  padding: 14px 20px;
+  text-align: left;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.data-table th {
+  background: var(--gray-50);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--gray-600);
+}
+
+.data-table td {
+  font-size: 14px;
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tr:hover td {
+  background: var(--gray-50);
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* Pagination */
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.page-info {
+  font-size: 14px;
+  color: var(--gray-600);
+}
+
+/* Transaction Modal */
+.transaction-modal {
+  max-width: 500px;
+}
+
+.transaction-type-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.type-tab {
+  flex: 1;
+  padding: 10px;
+  border: 2px solid var(--gray-200);
+  border-radius: 8px;
+  background: white;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.type-tab:hover {
+  border-color: var(--gray-300);
+}
+
+.type-tab.active.buy {
+  border-color: var(--success);
+  background: #ecfdf5;
+  color: var(--success);
+}
+
+.type-tab.active.sell {
+  border-color: var(--danger);
+  background: #fef2f2;
+  color: var(--danger);
+}
+
+/* Transaction History */
+.transaction-history {
+  margin-top: 24px;
+}
+
+.transaction-history h4 {
+  font-size: 16px;
+  color: var(--gray-800);
+  margin-bottom: 16px;
+}
+
+.transaction-list {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.transaction-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.transaction-item:last-child {
+  border-bottom: none;
+}
+
+.transaction-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.transaction-type-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.transaction-type-badge.buy {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.transaction-type-badge.sell {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.transaction-type-badge.dividend {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.transaction-type-badge.fee {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.transaction-detail {
+  font-size: 14px;
+  color: var(--gray-700);
+}
+
+.transaction-channel {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin-top: 2px;
+}
+
+.transaction-right {
+  text-align: right;
+}
+
+.transaction-amount {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--gray-900);
+}
+
+.transaction-date {
+  font-size: 13px;
+  color: var(--gray-500);
+}
+
+.transaction-actions {
+  margin-left: 16px;
+}
+
+/* Asset Detail Modal */
+.asset-detail-modal {
+  max-width: 700px;
+}
+
+.asset-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.summary-item {
+  text-align: center;
+  padding: 16px;
+  background: var(--gray-50);
+  border-radius: 8px;
+}
+
+.summary-item .label {
+  display: block;
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-bottom: 4px;
+}
+
+.summary-item .value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .summary-cards {

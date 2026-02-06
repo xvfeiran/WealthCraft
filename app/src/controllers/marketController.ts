@@ -10,7 +10,7 @@ export class MarketController {
         throw new AppError('Unauthorized', 401);
       }
 
-      const stocks = await marketDataService.fetchUSStocks();
+      const stocks = await marketDataService.fetchAllUSStocks();
 
       res.json({
         success: true,

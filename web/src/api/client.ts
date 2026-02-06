@@ -128,13 +128,39 @@ export const assetApi = {
 
 // Transaction API
 export const transactionApi = {
-  getByAsset: (assetId: string) =>
-    api.get<ApiResponse>(`/transactions/asset/${assetId}`),
+  getByAsset: (assetId: string, page?: number, pageSize?: number) =>
+    api.get<ApiResponse>(`/transactions/asset/${assetId}`, {
+      params: { page, pageSize },
+    }),
 
-  create: (assetId: string, data: { type: string; quantity: number; price: number; fee?: number; timestamp?: string }) =>
-    api.post<ApiResponse>(`/transactions/asset/${assetId}`, data),
+  create: (assetId: string, data: {
+    type: string;
+    quantity: number;
+    price: number;
+    fee?: number;
+    timestamp?: string;
+    channelId?: string;
+  }) => api.post<ApiResponse>(`/transactions/asset/${assetId}`, data),
 
   delete: (id: string) => api.delete<ApiResponse>(`/transactions/${id}`),
+};
+
+// Channel API
+export const channelApi = {
+  getAll: (page?: number, pageSize?: number) =>
+    api.get<ApiResponse>('/channels', { params: { page, pageSize } }),
+
+  getAllSimple: () => api.get<ApiResponse>('/channels/simple'),
+
+  getById: (id: string) => api.get<ApiResponse>(`/channels/${id}`),
+
+  create: (data: { name: string; currency?: string; account?: string }) =>
+    api.post<ApiResponse>('/channels', data),
+
+  update: (id: string, data: { name?: string; currency?: string; account?: string }) =>
+    api.put<ApiResponse>(`/channels/${id}`, data),
+
+  delete: (id: string) => api.delete<ApiResponse>(`/channels/${id}`),
 };
 
 // Recommendation API

@@ -150,8 +150,8 @@ export class AssetController {
         throw new AppError('Search query is required', 400);
       }
 
-      const marketFilter = market as 'US' | 'CN' | undefined;
-      const results = await marketDataService.searchStocks(q, marketFilter);
+      const marketFilter = market as string | undefined;
+      const results = await marketDataService.searchStocks(q, marketFilter as any);
 
       res.json({
         success: true,

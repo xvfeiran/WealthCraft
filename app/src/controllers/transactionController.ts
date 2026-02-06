@@ -11,11 +11,18 @@ export class TransactionController {
       }
 
       const { assetId } = req.params;
-      const transactions = await transactionService.getByAsset(assetId, req.user.userId);
+      const page = parseInt(req.query.page as string) || 1;
+      const pageSize = parseInt(req.query.pageSize as string) || 10;
+
+      const result = await transactionService.getByAsset(assetId, req.user.userId, {
+        page,
+        pageSize,
+      });
 
       res.json({
         success: true,
-        data: transactions,
+        data: result.data,
+        pagination: result.pagination,
       });
     } catch (error) {
       next(error);
@@ -29,7 +36,7 @@ export class TransactionController {
       }
 
       const { assetId } = req.params;
-      const { type, quantity, price, fee, timestamp } = req.body;
+      const { type, quantity, price, fee, timestamp, channelId } = req.body;
 
       if (!type || quantity === undefined || price === undefined) {
         throw new AppError('Type, quantity, and price are required', 400);
@@ -45,6 +52,7 @@ export class TransactionController {
         price,
         fee,
         timestamp: timestamp ? new Date(timestamp) : undefined,
+        channelId,
       });
 
       res.status(201).json({

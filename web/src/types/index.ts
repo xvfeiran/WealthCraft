@@ -71,11 +71,34 @@ export interface Asset {
 export interface Transaction {
   id: string;
   assetId: string;
+  channelId?: string;
   type: 'BUY' | 'SELL' | 'DIVIDEND' | 'FEE';
   quantity: number;
   price: number;
   fee: number;
   timestamp: string;
+  channel?: {
+    id: string;
+    name: string;
+    currency: string;
+  };
+}
+
+export interface Channel {
+  id: string;
+  userId: string;
+  name: string;
+  currency: string;
+  account?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Pagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
 }
 
 export interface Recommendation {

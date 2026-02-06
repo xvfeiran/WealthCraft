@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import PortfolioDetail from './pages/PortfolioDetail';
+import Channels from './pages/Channels';
 import './App.css';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -48,6 +49,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <PortfolioDetail />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/channels"
+        element={
+          <PrivateRoute>
+            <Channels />
           </PrivateRoute>
         }
       />

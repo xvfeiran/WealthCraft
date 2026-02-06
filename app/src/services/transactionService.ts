@@ -3,8 +3,14 @@ import { AppError } from '../middleware/errorHandler';
 
 export type TransactionType = 'BUY' | 'SELL' | 'DIVIDEND' | 'FEE';
 
+interface PaginationParams {
+  page?: number;
+  pageSize?: number;
+}
+
 export class TransactionService {
-  async getByAsset(assetId: string, userId: string) {
+  // 获取资产交易记录（分页）
+  async getByAsset(assetId: string, userId: string, params: PaginationParams = {}) {
     // Verify ownership through portfolio
     const asset = await prisma.asset.findUnique({
       where: { id: assetId },
@@ -15,12 +21,38 @@ export class TransactionService {
       throw new AppError('Asset not found', 404);
     }
 
-    const transactions = await prisma.transaction.findMany({
-      where: { assetId },
-      orderBy: { timestamp: 'desc' },
-    });
+    const page = params.page || 1;
+    const pageSize = params.pageSize || 10;
+    const skip = (page - 1) * pageSize;
 
-    return transactions;
+    const [transactions, total] = await Promise.all([
+      prisma.transaction.findMany({
+        where: { assetId },
+        include: {
+          channel: {
+            select: {
+              id: true,
+              name: true,
+              currency: true,
+            },
+          },
+        },
+        orderBy: { timestamp: 'desc' },
+        skip,
+        take: pageSize,
+      }),
+      prisma.transaction.count({ where: { assetId } }),
+    ]);
+
+    return {
+      data: transactions,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    };
   }
 
   async create(
@@ -32,6 +64,7 @@ export class TransactionService {
       price: number;
       fee?: number;
       timestamp?: Date;
+      channelId?: string;
     }
   ) {
     // Verify ownership through portfolio
@@ -44,6 +77,16 @@ export class TransactionService {
       throw new AppError('Asset not found', 404);
     }
 
+    // If channelId provided, verify it belongs to user
+    if (data.channelId) {
+      const channel = await prisma.channel.findFirst({
+        where: { id: data.channelId, userId },
+      });
+      if (!channel) {
+        throw new AppError('Channel not found', 404);
+      }
+    }
+
     // Create transaction
     const transaction = await prisma.transaction.create({
       data: {
@@ -53,6 +96,16 @@ export class TransactionService {
         price: data.price,
         fee: data.fee || 0,
         timestamp: data.timestamp || new Date(),
+        channelId: data.channelId,
+      },
+      include: {
+        channel: {
+          select: {
+            id: true,
+            name: true,
+            currency: true,
+          },
+        },
       },
     });
 
