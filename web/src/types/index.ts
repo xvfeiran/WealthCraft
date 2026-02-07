@@ -125,6 +125,13 @@ export interface PortfolioSummary {
   }[];
 }
 
+export interface SubPortfolioSummary {
+  subPortfolio: SubPortfolio;
+  summary: PortfolioSummary;
+  currentPercent: number;
+  deviation: number;
+}
+
 export interface MarketStock {
   symbol: string;
   name: string;

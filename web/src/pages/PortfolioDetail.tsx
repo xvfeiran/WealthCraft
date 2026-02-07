@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, TrendingUp, TrendingDown, RefreshCw, Search, FolderPlus, Edit2, DollarSign, FileText, ArrowRightLeft } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, PolarAngleAxis, PolarRadiusAxis, Radar, RadarChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
 import { portfolioApi, assetApi, recommendationApi, instrumentApi, transactionApi, channelApi } from '../api/client';
-import type { Portfolio, Asset, PortfolioSummary, Recommendation, MarketInstrument, SubPortfolio, Transaction, Channel, Pagination } from '../types';
+import type { Portfolio, Asset, PortfolioSummary, Recommendation, MarketInstrument, SubPortfolio, Transaction, Channel, Pagination, SubPortfolioSummary } from '../types';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
@@ -38,6 +38,8 @@ export default function PortfolioDetail() {
   const [moveAsset, setMoveAsset] = useState<Asset | null>(null);
   const [showEditAssetModal, setShowEditAssetModal] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+  const [subPortfolioSummaries, setSubPortfolioSummaries] = useState<SubPortfolioSummary[]>([]);
+  const [profitCurve, setProfitCurve] = useState<Array<{ date: string; value: number; cost: number; profit: number; profitRate: number }>>([]);
 
   useEffect(() => {
     if (id) {
@@ -49,17 +51,21 @@ export default function PortfolioDetail() {
     if (!id) return;
     setLoading(true);
     try {
-      const [portfolioRes, assetsRes, summaryRes, recsRes] = await Promise.all([
+      const [portfolioRes, assetsRes, summaryRes, recsRes, summariesRes, profitCurveRes] = await Promise.all([
         portfolioApi.getById(id),
         assetApi.getByPortfolio(id),
         portfolioApi.getSummary(id),
         recommendationApi.getByPortfolio(id),
+        portfolioApi.getSubPortfolioSummaries(id),
+        portfolioApi.getProfitCurve(id),
       ]);
 
       setPortfolio(portfolioRes.data.data);
       setAssets(assetsRes.data.data || []);
       setSummary(summaryRes.data.data);
       setRecommendations(recsRes.data.data || []);
+      setSubPortfolioSummaries(summariesRes.data.data || []);
+      setProfitCurve(profitCurveRes.data.data || []);
     } catch (error) {
       console.error('Failed to load portfolio', error);
     } finally {
@@ -138,6 +144,90 @@ export default function PortfolioDetail() {
   const formatPercent = (value: number) => {
     const sign = value >= 0 ? '+' : '';
     return `${sign}${value.toFixed(2)}%`;
+  };
+
+  // Get deviation color based on deviation value
+  const getDeviationColor = (deviation: number) => {
+    const absDeviation = Math.abs(deviation);
+    // Define intensity levels (larger deviation = darker color)
+    if (absDeviation >= 10) return deviation > 0 ? '#c53030' : '#276749'; // Dark red/dark green
+    if (absDeviation >= 5) return deviation > 0 ? '#e53e3e' : '#38a169'; // Medium red/medium green
+    if (absDeviation >= 2) return deviation > 0 ? '#fc8181' : '#68d391'; // Light red/light green
+    return deviation > 0 ? '#fed7d7' : '#c6f6d5'; // Very light red/very light green
+  };
+
+  const getDeviationBadgeStyle = (deviation: number): React.CSSProperties => ({
+    backgroundColor: getDeviationColor(deviation),
+    color: Math.abs(deviation) >= 5 ? '#fff' : '#000',
+    padding: '2px 8px',
+    borderRadius: '4px',
+    fontSize: '12px',
+    fontWeight: 'bold',
+  });
+
+  // Prepare rose chart data showing sub-portfolios and direct assets
+  const getRoseChartData = () => {
+    if (!portfolio || !allocations) return [];
+
+    const data: Array<{ name: string; value: number; type: 'sub' | 'direct' }> = [];
+
+    // Add sub-portfolios
+    portfolio.subPortfolios?.forEach((sp) => {
+      const value = allocations.subPortfolioValues[sp.id] || 0;
+      if (value > 0) {
+        data.push({
+          name: sp.name,
+          value,
+          type: 'sub',
+        });
+      }
+    });
+
+    // Add direct assets as a group (if any exist)
+    if (allocations.directAssetsValue > 0) {
+      data.push({
+        name: '直接资产',
+        value: allocations.directAssetsValue,
+        type: 'direct',
+      });
+    }
+
+    return data;
+  };
+
+  // Prepare bar chart data for ALLOCATION portfolios (expected vs actual)
+  const getAllocationBarData = () => {
+    if (!portfolio || portfolio.ruleType !== 'ALLOCATION' || !allocations) return [];
+
+    const data: Array<{ name: string; expected: number; actual: number }> = [];
+
+    // Add sub-portfolios
+    portfolio.subPortfolios?.forEach((sp) => {
+      const actualPercent = allocations.getSubPortfolioPercent(sp.id);
+      data.push({
+        name: sp.name,
+        expected: sp.allocationPercent || 0,
+        actual: actualPercent,
+      });
+    });
+
+    // Add direct assets (if they have allocation percent set)
+    const directAssetsWithAllocation = assets.filter(
+      (a) => !a.subPortfolioId && a.allocationPercent > 0
+    );
+    if (directAssetsWithAllocation.length > 0) {
+      directAssetsWithAllocation.forEach((asset) => {
+        const assetValue = (asset.quantity || 0) * (asset.currentPrice || 0);
+        const actualPercent = allocations.getAssetPercent(assetValue);
+        data.push({
+          name: asset.symbol,
+          expected: asset.allocationPercent,
+          actual: actualPercent,
+        });
+      });
+    }
+
+    return data;
   };
 
   // Calculate total portfolio value and current allocations
@@ -261,36 +351,168 @@ export default function PortfolioDetail() {
       <div className="tab-content">
         {activeTab === 'overview' && (
           <div className="overview-section">
-            <h3>资产分布</h3>
-            {pieData.length > 0 ? (
-              <div className="chart-container">
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={(props) => {
-                        const data = props.payload as { name: string; percentage: number };
-                        return `${data.name} ${data.percentage.toFixed(1)}%`;
-                      }}
-                      outerRadius={100}
-                      dataKey="value"
-                    >
-                      {pieData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value) => formatCurrency(Number(value), summary?.currency || 'CNY')}
-                    />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
+            {/* 玫瑰图：显示子组合和直接资产的分布 */}
+            {(() => {
+              const roseData = getRoseChartData();
+              if (roseData.length > 0) {
+                return (
+                  <div style={{ marginBottom: '30px' }}>
+                    <h3>资产结构</h3>
+                    <div className="chart-container">
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={roseData}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            label={(props) => {
+                              const data = props.payload as { name: string; value: number };
+                              const percent = allocations && allocations.totalValue > 0
+                                ? ((data.value / allocations.totalValue) * 100).toFixed(1)
+                                : '0.0';
+                              return `${data.name} ${percent}%`;
+                            }}
+                            outerRadius={100}
+                            innerRadius={0}
+                            startAngle={90}
+                            endAngle={-270}
+                            dataKey="value"
+                          >
+                            {roseData.map((_, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(value) => formatCurrency(Number(value), summary?.currency || 'CNY')}
+                          />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            {/* 固定比例组合：显示预期vs实际占比的柱状图 */}
+            {portfolio.ruleType === 'ALLOCATION' && (() => {
+              const barData = getAllocationBarData();
+              if (barData.length > 0) {
+                return (
+                  <div style={{ marginBottom: '30px' }}>
+                    <h3>预期 vs 实际占比</h3>
+                    <div className="chart-container">
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={barData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" />
+                          <YAxis />
+                          <Tooltip formatter={(value) => `${Number(value).toFixed(1)}%`} />
+                          <Legend />
+                          <Bar dataKey="expected" fill="#8884d8" name="预期占比" />
+                          <Bar dataKey="actual" fill="#82ca9d" name="实际占比" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            {/* 收益曲线 */}
+            {profitCurve.length > 0 && (
+              <div style={{ marginBottom: '30px' }}>
+                <h3>收益曲线</h3>
+                <div className="chart-container">
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={profitCurve}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="date"
+                        tickFormatter={(value) => {
+                          const date = new Date(value);
+                          return `${date.getMonth() + 1}/${date.getDate()}`;
+                        }}
+                      />
+                      <YAxis yAxisId="left" />
+                      <YAxis yAxisId="right" orientation="right" />
+                      <Tooltip
+                        labelFormatter={(value) => {
+                          const date = new Date(value);
+                          return date.toLocaleDateString('zh-CN');
+                        }}
+                        formatter={(value: number, name: string) => {
+                          if (name === 'profit') {
+                            return [formatCurrency(value, summary?.currency || 'CNY'), '收益'];
+                          }
+                          if (name === 'profitRate') {
+                            return [`${value.toFixed(2)}%`, '收益率'];
+                          }
+                          return [formatCurrency(value, summary?.currency || 'CNY'), name === 'value' ? '资产' : '成本'];
+                        }}
+                      />
+                      <Legend />
+                      <Line type="monotone" dataKey="profit" stroke="#10b981" name="收益" strokeWidth={2} dot={false} yAxisId="left" />
+                      <Line type="monotone" dataKey="profitRate" stroke="#3b82f6" name="收益率" strokeWidth={2} dot={false} yAxisId="right" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
-            ) : (
-              <div className="empty-chart">暂无资产数据</div>
+            )}
+
+            {/* 子组合汇总 */}
+            {subPortfolioSummaries.length > 0 && (
+              <div className="sub-portfolio-summaries-section" style={{ marginTop: '30px' }}>
+                <h3>子组合汇总</h3>
+                <div className="sub-portfolio-cards-grid">
+                  {subPortfolioSummaries.map((item) => (
+                    <div key={item.subPortfolio.id} className="sub-portfolio-summary-card">
+                      <div className="sub-portfolio-summary-header">
+                        <h4>{item.subPortfolio.name}</h4>
+                        <span style={getDeviationBadgeStyle(item.deviation)}>
+                          {item.deviation > 0 ? '+' : ''}{item.deviation.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="sub-portfolio-summary-body">
+                        <div className="summary-item">
+                          <span className="label">当前占比</span>
+                          <span className="value">{item.currentPercent.toFixed(1)}%</span>
+                        </div>
+                        {item.subPortfolio.allocationPercent > 0 && (
+                          <div className="summary-item">
+                            <span className="label">目标占比</span>
+                            <span className="value">{item.subPortfolio.allocationPercent}%</span>
+                          </div>
+                        )}
+                        <div className="summary-item">
+                          <span className="label">资产</span>
+                          <span className="value">{formatCurrency(item.summary.totalValue, item.summary.currency)}</span>
+                        </div>
+                        <div className="summary-item">
+                          <span className="label">成本</span>
+                          <span className="value">{formatCurrency(item.summary.totalCost, item.summary.currency)}</span>
+                        </div>
+                        <div className="summary-item">
+                          <span className="label">收益</span>
+                          <span className={`value ${item.summary.totalReturn >= 0 ? 'positive' : 'negative'}`}>
+                            {item.summary.totalReturn >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                            {formatCurrency(item.summary.totalReturn, item.summary.currency)}
+                          </span>
+                        </div>
+                        <div className="summary-item">
+                          <span className="label">收益率</span>
+                          <span className={`value ${item.summary.returnRate >= 0 ? 'positive' : 'negative'}`}>
+                            {formatPercent(item.summary.returnRate)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         )}

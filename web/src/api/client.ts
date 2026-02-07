@@ -75,6 +75,9 @@ export const portfolioApi = {
   getSubPortfolioSummaries: (id: string) =>
     api.get<ApiResponse>(`/portfolios/${id}/sub-portfolio-summaries`),
 
+  getProfitCurve: (id: string) =>
+    api.get<ApiResponse>(`/portfolios/${id}/profit-curve`),
+
   // 子组合操作
   createSubPortfolio: (portfolioId: string, data: {
     name: string;
