@@ -68,6 +68,7 @@ model Asset {
   quantity            Float            @default(0)
   costPrice           Float            @default(0)
   currentPrice        Float            @default(0)
+  startDate           DateTime         @default(now()) // 资产开始持有时间
   // 定投规则: 每次定投金额 (仅当直接在组合下且 portfolio.ruleType = CONTRIBUTION 时使用)
   contributionAmount  Float            @default(0)
   // 固定比例规则: 目标比例 (仅当直接在组合下且 portfolio.ruleType = ALLOCATION 时使用)
@@ -159,14 +160,19 @@ model SyncLog {
   @@index([assetId])
 }
 
+// 汇率表 - 存储每日汇率中间价
 model ExchangeRate {
-  id           String   @id @default(uuid())
-  fromCurrency String
-  toCurrency   String
-  rate         Float
-  updatedAt    DateTime @updatedAt
+  id          String    @id @default(uuid())
+  fromCurrency String   // 源货币代码，如 USD, EUR
+  toCurrency   String   // 目标货币代码，如 CNY
+  rate         Float    // 汇率
+  date         DateTime @default(now()) // 汇率日期
+  source       String   @default("CHINAMONEY") // 数据源
+  createdAt    DateTime  @default(now())
 
-  @@unique([fromCurrency, toCurrency])
+  @@unique([fromCurrency, toCurrency, date])
+  @@index([date])
+  @@index([fromCurrency, toCurrency])
 }
 
 // 投资标的主数据 - 从第三方API同步

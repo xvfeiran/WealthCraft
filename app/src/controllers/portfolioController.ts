@@ -203,6 +203,25 @@ export class PortfolioController {
       next(error);
     }
   }
+
+  async getSubPortfolioSummaries(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) {
+        throw new AppError('Unauthorized', 401);
+      }
+
+      const { id } = req.params;
+
+      const summaries = await portfolioService.getSubPortfolioSummaries(id, req.user.userId);
+
+      res.json({
+        success: true,
+        data: summaries,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const portfolioController = new PortfolioController();

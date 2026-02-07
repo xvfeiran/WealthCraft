@@ -13,6 +13,7 @@ router.get('/:id', portfolioController.getById.bind(portfolioController));
 router.put('/:id', portfolioController.update.bind(portfolioController));
 router.delete('/:id', portfolioController.delete.bind(portfolioController));
 router.get('/:id/summary', portfolioController.getSummary.bind(portfolioController));
+router.get('/:id/sub-portfolio-summaries', portfolioController.getSubPortfolioSummaries.bind(portfolioController));
 
 // 子组合操作
 router.post('/:id/sub-portfolios', portfolioController.createSubPortfolio.bind(portfolioController));

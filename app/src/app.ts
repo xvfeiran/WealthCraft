@@ -75,6 +75,13 @@ app.get('/api', (req, res) => {
         'POST /api/instruments/sync': 'Trigger full sync (all markets)',
         'POST /api/instruments/sync/:market': 'Trigger sync for specific market',
       },
+      exchangeRates: {
+        'POST /api/exchange-rates/sync': 'Sync latest exchange rates from ChinaMoney',
+        'GET /api/exchange-rates/latest?from=USD&to=CNY': 'Get latest exchange rate',
+        'GET /api/exchange-rates/history?from=USD&to=CNY&startDate=2026-01-01&endDate=2026-02-01': 'Get exchange rate history',
+        'GET /api/exchange-rates/stats': 'Get exchange rate statistics',
+        'GET /api/exchange-rates/currencies': 'Get supported currencies list',
+      },
     },
   });
 });

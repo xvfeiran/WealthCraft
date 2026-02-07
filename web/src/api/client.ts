@@ -72,6 +72,9 @@ export const portfolioApi = {
 
   getSummary: (id: string) => api.get<ApiResponse>(`/portfolios/${id}/summary`),
 
+  getSubPortfolioSummaries: (id: string) =>
+    api.get<ApiResponse>(`/portfolios/${id}/sub-portfolio-summaries`),
+
   // 子组合操作
   createSubPortfolio: (portfolioId: string, data: {
     name: string;
@@ -105,6 +108,7 @@ export const assetApi = {
     quantity?: number;
     costPrice?: number;
     currentPrice?: number;
+    startDate?: Date;
     contributionAmount?: number;
     allocationPercent?: number;
     source?: string;
@@ -114,11 +118,14 @@ export const assetApi = {
   update: (id: string, data: {
     name?: string;
     subPortfolioId?: string | null;
+    currency?: string;
     quantity?: number;
     costPrice?: number;
     currentPrice?: number;
+    startDate?: Date;
     contributionAmount?: number;
     allocationPercent?: number;
+    channelId?: string | null;
   }) => api.put<ApiResponse>(`/assets/${id}`, data),
 
   delete: (id: string) => api.delete<ApiResponse>(`/assets/${id}`),

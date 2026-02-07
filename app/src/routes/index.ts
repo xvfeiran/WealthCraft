@@ -7,6 +7,7 @@ import recommendationRoutes from './recommendation';
 import marketRoutes from './market';
 import instrumentRoutes from './instrument';
 import channelRoutes from './channel';
+import exchangeRateRoutes from './exchangeRateRoutes';
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.use('/recommendations', recommendationRoutes);
 router.use('/market', marketRoutes);
 router.use('/instruments', instrumentRoutes);
 router.use('/channels', channelRoutes);
+router.use('/exchange-rates', exchangeRateRoutes);
 
 export default router;

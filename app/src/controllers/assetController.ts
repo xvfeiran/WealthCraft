@@ -39,6 +39,7 @@ export class AssetController {
         quantity,
         costPrice,
         currentPrice,
+        startDate,
         contributionAmount,
         allocationPercent,
         source,
@@ -58,6 +59,7 @@ export class AssetController {
         quantity,
         costPrice,
         currentPrice,
+        startDate: startDate ? new Date(startDate) : undefined,
         contributionAmount,
         allocationPercent,
         source,
@@ -81,17 +83,30 @@ export class AssetController {
       }
 
       const { id } = req.params;
-      const { name, subPortfolioId, quantity, costPrice, currentPrice, contributionAmount, allocationPercent } =
-        req.body;
+      const {
+        name,
+        subPortfolioId,
+        currency,
+        quantity,
+        costPrice,
+        currentPrice,
+        startDate,
+        contributionAmount,
+        allocationPercent,
+        channelId,
+      } = req.body;
 
       const asset = await assetService.update(id, req.user.userId, {
         name,
         subPortfolioId,
+        currency,
         quantity,
         costPrice,
         currentPrice,
+        startDate: startDate ? new Date(startDate) : undefined,
         contributionAmount,
         allocationPercent,
+        channelId,
       });
 
       res.json({

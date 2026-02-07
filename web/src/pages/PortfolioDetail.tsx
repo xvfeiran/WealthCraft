@@ -36,6 +36,8 @@ export default function PortfolioDetail() {
   const [detailAsset, setDetailAsset] = useState<Asset | null>(null);
   const [showMoveAssetModal, setShowMoveAssetModal] = useState(false);
   const [moveAsset, setMoveAsset] = useState<Asset | null>(null);
+  const [showEditAssetModal, setShowEditAssetModal] = useState(false);
+  const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -114,6 +116,11 @@ export default function PortfolioDetail() {
   const handleOpenAssetDetail = (asset: Asset) => {
     setDetailAsset(asset);
     setShowAssetDetailModal(true);
+  };
+
+  const handleOpenEdit = (asset: Asset) => {
+    setEditingAsset(asset);
+    setShowEditAssetModal(true);
   };
 
   const handleOpenMoveAsset = (asset: Asset) => {
@@ -380,6 +387,13 @@ export default function PortfolioDetail() {
                                 <div className="action-buttons">
                                   <button
                                     className="btn btn-icon btn-secondary"
+                                    onClick={() => handleOpenEdit(asset)}
+                                    title="编辑"
+                                  >
+                                    <Edit2 size={14} />
+                                  </button>
+                                  <button
+                                    className="btn btn-icon btn-secondary"
                                     onClick={() => handleOpenTransaction(asset)}
                                     title="买入/卖出"
                                   >
@@ -471,6 +485,13 @@ export default function PortfolioDetail() {
                         </td>
                         <td>
                           <div className="action-buttons">
+                            <button
+                              className="btn btn-icon btn-secondary"
+                              onClick={() => handleOpenEdit(asset)}
+                              title="编辑"
+                            >
+                              <Edit2 size={14} />
+                            </button>
                             <button
                               className="btn btn-icon btn-secondary"
                               onClick={() => handleOpenTransaction(asset)}
@@ -599,6 +620,22 @@ export default function PortfolioDetail() {
         />
       )}
 
+      {showEditAssetModal && editingAsset && (
+        <EditAssetModal
+          asset={editingAsset}
+          portfolio={portfolio}
+          onClose={() => {
+            setShowEditAssetModal(false);
+            setEditingAsset(null);
+          }}
+          onUpdated={() => {
+            setShowEditAssetModal(false);
+            setEditingAsset(null);
+            loadData();
+          }}
+        />
+      )}
+
       {showMoveAssetModal && moveAsset && portfolio && (
         <MoveAssetModal
           asset={moveAsset}
@@ -641,6 +678,7 @@ function AddAssetModal({
   const [currency, setCurrency] = useState('CNY');
   const [quantity, setQuantity] = useState('');
   const [costPrice, setCostPrice] = useState('');
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]); // 默认为当天
   const [allocationPercent, setAllocationPercent] = useState('');
   const [contributionAmount, setContributionAmount] = useState('');
   const [channelId, setChannelId] = useState('');
@@ -713,6 +751,7 @@ function AddAssetModal({
         quantity: parseFloat(quantity) || 0,
         costPrice: parseFloat(costPrice) || 0,
         currentPrice: currentPriceValue,
+        startDate: new Date(startDate),
         allocationPercent: parseFloat(allocationPercent) || 0,
         contributionAmount: parseFloat(contributionAmount) || 0,
         source: selectedInstrument ? 'SYNC' : 'MANUAL',
@@ -949,6 +988,19 @@ function AddAssetModal({
                   onChange={(e) => setCostPrice(e.target.value)}
                   step="0.01"
                   placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="startDate">开始时间</label>
+                <input
+                  type="date"
+                  id="startDate"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
                 />
               </div>
             </div>
@@ -1354,10 +1406,12 @@ function AssetDetailModal({
     FEE: '费用',
   };
 
-  const totalValue = (asset.quantity || 0) * (asset.currentPrice || 0);
-  const totalCost = (asset.quantity || 0) * (asset.costPrice || 0);
-  const profitLoss = totalValue - totalCost;
-  const profitLossPercent = totalCost > 0 ? (profitLoss / totalCost) * 100 : 0;
+  // Asset详情保持原始货币，不做转换
+  // 汇总转换只在portfolio summary中做
+  const totalValue = asset.totalValue || 0;
+  const totalCost = asset.totalCost || 0;
+  const profitLoss = asset.profitLoss || 0;
+  const profitLossPercent = asset.profitLossPercent || 0;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -1376,6 +1430,10 @@ function AssetDetailModal({
           <div className="summary-item">
             <span className="label">现价</span>
             <span className="value">{formatCurrency(asset.currentPrice, asset.currency)}</span>
+          </div>
+          <div className="summary-item">
+            <span className="label">开始时间</span>
+            <span className="value">{new Date(asset.startDate || asset.createdAt).toLocaleDateString('zh-CN')}</span>
           </div>
           <div className="summary-item">
             <span className="label">总市值</span>
@@ -1573,6 +1631,193 @@ function MoveAssetModal({
               disabled={loading || targetSubPortfolioId === (asset.subPortfolioId || null)}
             >
               {loading ? '移动中...' : '确认移动'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function EditAssetModal({
+  asset,
+  portfolio,
+  onClose,
+  onUpdated,
+}: {
+  asset: Asset;
+  portfolio: Portfolio;
+  onClose: () => void;
+  onUpdated: () => void;
+}) {
+  const [symbol, setSymbol] = useState(asset.symbol);
+  const [name, setName] = useState(asset.name);
+  const [currency, setCurrency] = useState(asset.currency);
+  const [quantity, setQuantity] = useState(asset.quantity.toString());
+  const [costPrice, setCostPrice] = useState(asset.costPrice.toString());
+  const [currentPrice, setCurrentPrice] = useState(asset.currentPrice.toString());
+  const [startDate, setStartDate] = useState(
+    asset.startDate ? new Date(asset.startDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+  );
+  const [channelId, setChannelId] = useState(asset.channelId || '');
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [loadingChannels, setLoadingChannels] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const loadChannels = async () => {
+      setLoadingChannels(true);
+      try {
+        const res = await channelApi.getAllSimple();
+        setChannels(res.data.data || []);
+      } catch (err) {
+        console.error('Failed to load channels', err);
+      } finally {
+        setLoadingChannels(false);
+      }
+    };
+    loadChannels();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      await assetApi.update(asset.id, {
+        name,
+        currency,
+        quantity: parseFloat(quantity) || 0,
+        costPrice: parseFloat(costPrice) || 0,
+        currentPrice: parseFloat(currentPrice) || 0,
+        startDate: new Date(startDate),
+        channelId: channelId || null,
+      });
+
+      onUpdated();
+    } catch (err: any) {
+      setError(err.response?.data?.error || '更新失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>编辑资产</h3>
+
+        {error && <div className="error-message">{error}</div>}
+
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label htmlFor="editSymbol">代码</label>
+            <input
+              type="text"
+              id="editSymbol"
+              value={symbol}
+              onChange={(e) => setSymbol(e.target.value)}
+              disabled
+              className="readonly-input"
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="editName">名称</label>
+            <input
+              type="text"
+              id="editName"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="editCurrency">币种</label>
+            <select
+              id="editCurrency"
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+            >
+              <option value="CNY">人民币 (CNY)</option>
+              <option value="USD">美元 (USD)</option>
+            </select>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="editQuantity">数量</label>
+              <input
+                type="number"
+                id="editQuantity"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                step="0.01"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="editCostPrice">成本价</label>
+              <input
+                type="number"
+                id="editCostPrice"
+                value={costPrice}
+                onChange={(e) => setCostPrice(e.target.value)}
+                step="0.01"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="editCurrentPrice">现价</label>
+            <input
+              type="number"
+              id="editCurrentPrice"
+              value={currentPrice}
+              onChange={(e) => setCurrentPrice(e.target.value)}
+              step="0.01"
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="editStartDate">开始时间</label>
+            <input
+              type="date"
+              id="editStartDate"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              max={new Date().toISOString().split('T')[0]}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="editChannel">渠道</label>
+            <select
+              id="editChannel"
+              value={channelId}
+              onChange={(e) => setChannelId(e.target.value)}
+              disabled={loadingChannels}
+            >
+              <option value="">不选择</option>
+              {channels.map((channel) => (
+                <option key={channel.id} value={channel.id}>
+                  {channel.name}
+                  {channel.account ? ` (${channel.account})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
+              取消
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? '更新中...' : '保存'}
             </button>
           </div>
         </form>

@@ -20,6 +20,8 @@ export class AssetService {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Asset列表保持原始货币，不做转换
+    // 汇率转换只在portfolio summary中做
     return assets.map((asset) => ({
       ...asset,
       totalValue: asset.quantity * asset.currentPrice,
@@ -42,6 +44,7 @@ export class AssetService {
       quantity?: number;
       costPrice?: number;
       currentPrice?: number;
+      startDate?: Date;
       contributionAmount?: number;
       allocationPercent?: number;
       source?: DataSource;
@@ -89,6 +92,7 @@ export class AssetService {
         quantity: data.quantity || 0,
         costPrice: data.costPrice || 0,
         currentPrice: data.currentPrice || data.costPrice || 0,
+        startDate: data.startDate || new Date(),
         contributionAmount: data.contributionAmount || 0,
         allocationPercent: data.allocationPercent || 0,
         source: data.source || 'MANUAL',
@@ -105,11 +109,14 @@ export class AssetService {
     data: {
       name?: string;
       subPortfolioId?: string | null;
+      currency?: string;
       quantity?: number;
       costPrice?: number;
       currentPrice?: number;
+      startDate?: Date;
       contributionAmount?: number;
       allocationPercent?: number;
+      channelId?: string | null;
     }
   ) {
     // Verify ownership through portfolio
@@ -129,6 +136,16 @@ export class AssetService {
       });
       if (!subPortfolio || subPortfolio.portfolioId !== asset.portfolioId) {
         throw new AppError('SubPortfolio not found or does not belong to this portfolio', 404);
+      }
+    }
+
+    // 如果更新channelId，验证渠道存在且属于该用户
+    if (data.channelId !== undefined && data.channelId !== null) {
+      const channel = await prisma.channel.findUnique({
+        where: { id: data.channelId },
+      });
+      if (!channel || channel.userId !== userId) {
+        throw new AppError('Channel not found or does not belong to this user', 404);
       }
     }
 
@@ -173,6 +190,7 @@ export class AssetService {
       throw new AppError('Asset not found', 404);
     }
 
+    // Asset详情保持原始货币，不做转换
     return {
       ...asset,
       totalValue: asset.quantity * asset.currentPrice,

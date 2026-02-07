@@ -5,6 +5,7 @@ import { prisma } from './lib/prisma';
 import cron from 'node-cron';
 import { marketDataService } from './services/marketDataService';
 import { instrumentSyncService } from './services/instrumentSyncService';
+import { exchangeRateService } from './services/exchangeRateService';
 
 // Helper function to log sync results
 function logSyncResult(result: Awaited<ReturnType<typeof instrumentSyncService.syncAll>>) {
@@ -61,6 +62,17 @@ async function main() {
     cron.schedule('30 15 * * 1-5', async () => {
       logger.info('Running scheduled price sync');
       await marketDataService.syncAllAssetPrices();
+    });
+
+    // Schedule daily exchange rate sync at 8:00 AM (after ChinaMoney publishes)
+    cron.schedule('0 8 * * *', async () => {
+      logger.info('Running scheduled exchange rate sync from ChinaMoney...');
+      try {
+        const result = await exchangeRateService.syncLatestRates();
+        logger.info(`Exchange rate sync completed: ${result.success} success, ${result.failed} failed`);
+      } catch (err) {
+        logger.error('Scheduled exchange rate sync failed', err);
+      }
     });
 
     logger.info('Scheduled tasks initialized');
