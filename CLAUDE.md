@@ -2,6 +2,35 @@
 
 Fin-Pilot: Multi-asset investment portfolio management tool (A-shares, US stocks, ETFs, bonds, multi-currency).
 
+## ⚠️ IMPORTANT: Always Use tmux for Long-Running Servers
+
+**ALWAYS run backend/frontend servers in tmux sessions** to:
+- Prevent server termination when Claude Code commands finish
+- Avoid accidental port conflicts from multiple instances
+- Keep servers running persistently across sessions
+
+**tmux Commands:**
+```bash
+# Create new session for backend
+tmux new-session -d -s wealthcraft -n backend
+tmux send-keys -t wealthcraft 'cd /home/faelan/code/WealthCraft/app' Enter
+tmux send-keys -t wealthcraft 'PORT=3001 npm run dev' Enter
+
+# Create new session for frontend (optional)
+tmux new-session -d -s wealthcraft-web -n frontend
+tmux send-keys -t wealthcraft-web 'cd /home/faelan/code/WealthCraft/web' Enter
+tmux send-keys -t wealthcraft-web 'npm run dev' Enter
+
+# Attach to session
+tmux attach -t wealthcraft
+
+# List all sessions
+tmux ls
+
+# Kill session
+tmux kill-session -t wealthcraft
+```
+
 ## Project Structure
 
 | Dir | Tech |
@@ -13,12 +42,12 @@ Fin-Pilot: Multi-asset investment portfolio management tool (A-shares, US stocks
 ## Commands
 
 ```bash
-# Backend
+# Backend (RUN IN tmux!)
 cd app && npm run dev              # Dev server
 npm run prisma:migrate            # Migrate DB
 npx tsc --noEmit                  # Type check
 
-# Frontend
+# Frontend (RUN IN tmux!)
 cd web && npm run dev              # Dev server
 npx tsc --noEmit                  # Type check
 
