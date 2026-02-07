@@ -78,9 +78,84 @@ skill pre-delivery-check          # Pre-delivery checklist
 
 **Frontend**:
 - Functional components + hooks
-- Modals in same file as parent
 - Currency: `Intl.NumberFormat('zh-CN')`
 - Icons: `lucide-react`, Charts: `recharts`
+
+## 🎯 Clean Code Principles
+
+### File/Component Size Limits
+
+| Type | Recommended | Warning | Unacceptable |
+|------|-------------|---------|--------------|
+| Component/Function | < 100 lines | 100-300 lines | > 300 lines |
+| Service File | < 300 lines | 300-500 lines | > 500 lines |
+| Page Component | < 400 lines | 400-800 lines | > 800 lines |
+
+**Example Issue**: `PortfolioDetail.tsx` was 2049 lines ❌
+- Contained 6 Modal components
+- **Solution**: Extract modals to `web/src/components/portfolio/`
+
+### Single Responsibility Principle (SRP)
+
+A component/function should do ONE thing.
+
+**Warning Signs**:
+- Component name contains "And" or "Or"
+- Component has > 5 useState hooks
+- Component has > 500 lines
+- Multiple unrelated concerns in one file
+
+**File Organization**:
+```
+web/src/
+├── components/          # Reusable UI components
+│   ├── portfolio/       # Feature-specific components
+│   │   ├── AddAssetModal.tsx
+│   │   ├── SubPortfolioModal.tsx
+│   │   └── index.ts
+│   └── common/          # Shared components
+├── hooks/               # Custom React hooks
+├── utils/               # Utility functions
+└── pages/               # Route pages (should be thin)
+```
+
+**Page Components Should**:
+- Fetch data
+- Pass data to child components
+- Handle routing
+- Be < 400 lines
+
+**Extract to Components When**:
+- Modal logic is > 50 lines
+- Form has > 5 fields
+- Logic is reused in multiple places
+- Component has deeply nested JSX
+
+### When to Create New Files
+
+**Create separate component file when**:
+1. Component is > 100 lines
+2. Component is used in multiple places
+3. Component has complex state/logic
+4. Component is a Modal, Form, or complex UI
+
+**Create hook file when**:
+1. Logic is reused across components
+2. Logic involves multiple useState/useEffect
+3. Logic can be tested independently
+
+**Create utility file when**:
+1. Pure functions (no side effects)
+2. Format/validation functions
+3. Calculation functions
+
+### Code Review Checklist
+
+Before committing, ask:
+- [ ] Is any file > 500 lines? Consider splitting.
+- [ ] Does any component have > 5 state variables? Consider custom hook.
+- [ ] Are there duplicated code blocks? Extract to function.
+- [ ] Is JSX nested > 4 levels? Extract component.
 
 ## Data Migration
 
