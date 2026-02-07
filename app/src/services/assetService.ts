@@ -45,6 +45,7 @@ export class AssetService {
       contributionAmount?: number;
       allocationPercent?: number;
       source?: DataSource;
+      channelId?: string;
     }
   ) {
     // Verify portfolio ownership
@@ -91,6 +92,7 @@ export class AssetService {
         contributionAmount: data.contributionAmount || 0,
         allocationPercent: data.allocationPercent || 0,
         source: data.source || 'MANUAL',
+        channelId: data.channelId || null,
       },
     });
 

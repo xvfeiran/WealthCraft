@@ -9,7 +9,23 @@
       "Bash(npm install)",
       "Bash(npm install:*)",
       "Bash(npx prisma generate:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(ls:*)",
+      "Bash(sqlite3:*)",
+      "Bash(npm run dev)",
+      "Bash(pkill:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(tmux:*)",
+      "Bash(chmod:*)",
+      "Bash(./scripts/dev-servers.sh:*)",
+      "Bash(wc:*)",
+      "Bash(node:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(npx prisma db execute:*)",
+      "Bash(/home/faelan/code/WealthCraft/web/src/App.css <<'EOF'\n\n/* Readonly input for asset market display */\n.readonly-input {\n  background: #f5f5f5;\n  color: #666;\n  cursor: not-allowed;\n  border: 1px solid #ddd;\n}\nEOF)",
+      "Bash(python3:*)",
+      "Bash(__NEW_LINE_0f0b29054116ddc3__ python3 <<'EOF'\nimport json\nwith open\\('/tmp/nasdaq_etf.json'\\) as f:\n    data = json.load\\(f\\)\n\nrows = data.get\\('data', {}\\).get\\('data', {}\\).get\\('rows', []\\)\nprint\\(f'ETF总数: {len\\(rows\\)}'\\)\n\n# 搜索TLT\nfor r in rows:\n    if r.get\\('symbol'\\) == 'TLT':\n        print\\(f'\\\\n找到TLT: {r.get\\(\"symbol\"\\)} - {r.get\\(\"companyName\"\\)}'\\)\n        break\nelse:\n    print\\('\\\\n未找到TLT'\\)\n    \n# 搜索Treasury相关\ntreasury = [r for r in rows if 'Treasury' in r.get\\('companyName', ''\\)]\nprint\\(f'Treasury相关ETF: {len\\(treasury\\)}只'\\)\nfor t in treasury[:10]:\n    print\\(f'  {t.get\\(\"symbol\"\\)}: {t.get\\(\"companyName\"\\)}'\\)\nEOF)"
     ]
   }
 }

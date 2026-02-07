@@ -5,6 +5,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import PortfolioDetail from './pages/PortfolioDetail';
 import Channels from './pages/Channels';
+import { ValidateToken } from './components/ValidateToken';
 import './App.css';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -68,7 +69,9 @@ function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <AppRoutes />
+        <ValidateToken>
+          <AppRoutes />
+        </ValidateToken>
       </BrowserRouter>
     </AuthProvider>
   );

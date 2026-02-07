@@ -1,95 +1,89 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Overview
-
-Fin-Pilot is a multi-asset investment portfolio management tool for individual investors. It supports A-shares, US stocks, ETFs, bonds, and multi-currency portfolios (CNY, USD).
+Fin-Pilot: Multi-asset investment portfolio management tool (A-shares, US stocks, ETFs, bonds, multi-currency).
 
 ## Project Structure
 
-| Directory | Purpose |
-|-----------|---------|
-| `app/` | Backend - Node.js + Express + TypeScript + Prisma (SQLite) |
-| `web/` | Frontend - React + TypeScript + Vite |
-| `doc/` | Documentation (requirements, API docs) |
+| Dir | Tech |
+|-----|------|
+| `app/` | Node.js + Express + TypeScript + Prisma (SQLite) |
+| `web/` | React + TypeScript + Vite |
+| `doc/` | Documentation |
 
-## Common Commands
+## Commands
 
-### Backend (`app/`)
 ```bash
-cd app
-npm run dev              # Start development server with hot reload
-npm run build            # Compile TypeScript
-npm run prisma:generate  # Regenerate Prisma client after schema changes
-npm run prisma:migrate   # Run database migrations
-npm run prisma:studio    # Open Prisma Studio (database GUI)
-npx tsc --noEmit         # Type check without emitting files
-```
+# Backend
+cd app && npm run dev              # Dev server
+npm run prisma:migrate            # Migrate DB
+npx tsc --noEmit                  # Type check
 
-### Frontend (`web/`)
-```bash
-cd web
-npm run dev      # Start Vite development server
-npm run build    # Build for production
-npm run lint     # Run ESLint
-```
+# Frontend
+cd web && npm run dev              # Dev server
+npx tsc --noEmit                  # Type check
 
-### Prisma Workflow
-After modifying `app/prisma/schema.prisma`:
-1. Run `npx prisma migrate dev --name <migration_name>` to create migration
-2. If EPERM error occurs on Windows: `rm -rf node_modules/.prisma && npx prisma generate`
+# Servers
+skill start-dev status            # Check both servers
+skill pre-delivery-check          # Pre-delivery checklist
+```
 
 ## Architecture
 
-### Backend Structure
-- **Routes** (`app/src/routes/`) - Express route definitions, use `authenticate` middleware
-- **Controllers** (`app/src/controllers/`) - Request handlers, use `AuthRequest` type from `types/`
-- **Services** (`app/src/services/`) - Business logic layer
-- **Middleware** (`app/src/middleware/`) - Auth (`authenticate`), error handling
-- **Types** (`app/src/types/`) - TypeScript interfaces including `AuthRequest`, `JwtPayload`
+**Backend**: Routes → Controllers → Services → Prisma
+**Frontend**: Pages + Context + API Client
+**Auth**: JWT via `Authorization: Bearer <token>`
 
-### Frontend Structure
-- **Pages** (`web/src/pages/`) - Route components (Dashboard, PortfolioDetail, Channels)
-- **Context** (`web/src/context/`) - React Context for auth state
-- **API** (`web/src/api/client.ts`) - Axios-based API client with all endpoints
-- **Types** (`web/src/types/`) - TypeScript interfaces for frontend models
-
-### Key Domain Models
-- **Portfolio** - Can have sub-portfolios (non-nestable), two rule types: CONTRIBUTION (定投) or ALLOCATION (固定比例)
-- **SubPortfolio** - Groups assets within a portfolio, inherits rule type from parent
-- **Asset** - Can belong to portfolio directly or through sub-portfolio. Field `market` specifies exchange (SSE, SSE_FUND, SSE_BOND, NASDAQ, NYSE, AMEX, US_ETF)
-- **Transaction** - BUY/SELL/DIVIDEND/FEE operations, linked to optional Channel
-- **Channel** - User-defined trading channels (e.g., 南方基金, Tiger Brokers, IBKR)
-- **MarketInstrument** - Master data synced from third-party APIs
-
-### Investment Rules
-- **CONTRIBUTION** (定投): Regular fixed-amount investments with period (DAILY/WEEKLY/MONTHLY)
-- **ALLOCATION** (固定比例): Target percentage-based allocation with rebalancing recommendations
-
-### API Authentication
-- JWT-based authentication via `Authorization: Bearer <token>` header
-- Auth middleware: `authenticate` (not `authenticateToken`)
-- Controller methods receive `AuthRequest` with `req.user.userId`
+**Key Models**:
+- Portfolio (sub-portfolios, CONTRIBUTION/ALLOCATION rules)
+- Asset (market: SSE, NASDAQ, etc.)
+- Transaction (BUY/SELL/DIVIDEND/FEE)
+- Channel (trading channels)
+- MarketInstrument (master data)
 
 ## Code Conventions
 
-### Backend
-- Controllers use class syntax with async methods
-- Services handle database operations via Prisma
-- User ID accessed as `req.user!.userId` (not `req.user.id`)
-- Pagination returns `{ data, pagination: { page, pageSize, total, totalPages } }`
+**Backend**:
+- Controllers: class syntax with async methods
+- User ID: `req.user!.userId`
+- Pagination: `{ data, pagination: { page, pageSize, total, totalPages } }`
 
-### Frontend
-- Functional components with hooks
-- Modal components defined in same file as parent page
-- Currency formatting: `Intl.NumberFormat` with 'zh-CN' locale
-- Icons from `lucide-react`
-- Charts from `recharts`
+**Frontend**:
+- Functional components + hooks
+- Modals in same file as parent
+- Currency: `Intl.NumberFormat('zh-CN')`
+- Icons: `lucide-react`, Charts: `recharts`
 
-## Environment Variables
+## Data Migration
 
-Backend (`app/.env`):
+**CRITICAL**: Never delete user data.
+
+**Safe Pattern**:
+```prisma
+// ✅ Add optional field
+channelId String?
+
+// ❌ DON'T drop/delete/migrate reset
+```
+
+**After migration**: Check SQL for DROP/DELETE/TRUNCATE
+
+## Common Pitfalls
+
+❌ **DB ops in terminal** → Use API endpoints, batch 100 records
+❌ **Hot reload** → Wait for restart, check `lsof -ti:3001` for conflicts
+❌ **Type assumptions** → Verify actual types (e.g., `1` vs `"1"`)
+❌ **Long ops** → Add timeout, batch processing
+
+## Recovery
+
+```bash
+lsof -ti:3001 | xargs kill -9     # Kill orphaned
+skill start-dev restart           # Restart
+```
+
+## Environment
+
+`app/.env`:
 ```
 DATABASE_URL="file:./dev.db"
 JWT_SECRET=<secret>

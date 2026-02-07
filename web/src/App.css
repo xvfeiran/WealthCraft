@@ -1265,3 +1265,11 @@ body {
     gap: 12px;
   }
 }
+
+/* Readonly input for asset market display */
+.readonly-input {
+  background: #f5f5f5;
+  color: #666;
+  cursor: not-allowed;
+  border: 1px solid #ddd;
+}

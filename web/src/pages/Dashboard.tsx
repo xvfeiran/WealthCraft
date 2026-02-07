@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, TrendingUp, TrendingDown, Wallet, Settings } from 'lucide-react';
 import { portfolioApi } from '../api/client';
@@ -51,6 +51,26 @@ export default function Dashboard() {
     return `${sign}${value.toFixed(2)}%`;
   };
 
+  // 计算所有组合的合计（简单版本：假设所有组合使用相同币种）
+  const totalSummary = useMemo(() => {
+    const summaryValues = Object.values(summaries);
+    if (summaryValues.length === 0) return null;
+
+    const baseCurrency = summaryValues[0].currency;
+    const totalValue = summaryValues.reduce((sum, s) => sum + s.totalValue, 0);
+    const totalCost = summaryValues.reduce((sum, s) => sum + s.totalCost, 0);
+    const totalReturn = totalValue - totalCost;
+    const returnRate = totalCost > 0 ? (totalReturn / totalCost) * 100 : 0;
+
+    return {
+      totalValue,
+      totalCost,
+      totalReturn,
+      returnRate,
+      currency: baseCurrency,
+    };
+  }, [summaries]);
+
   if (loading) {
     return <div className="loading">加载中...</div>;
   }
@@ -73,6 +93,33 @@ export default function Dashboard() {
       </header>
 
       <main className="dashboard-main">
+        {/* 合计统计卡片 */}
+        {totalSummary && (
+          <div className="summary-cards">
+            <div className="summary-card">
+              <span className="label">资产</span>
+              <span className="value">{formatCurrency(totalSummary.totalValue, totalSummary.currency)}</span>
+            </div>
+            <div className="summary-card">
+              <span className="label">成本</span>
+              <span className="value">{formatCurrency(totalSummary.totalCost, totalSummary.currency)}</span>
+            </div>
+            <div className="summary-card">
+              <span className="label">收益</span>
+              <span className={`value ${totalSummary.totalReturn >= 0 ? 'positive' : 'negative'}`}>
+                {totalSummary.totalReturn >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                {formatCurrency(totalSummary.totalReturn, totalSummary.currency)}
+              </span>
+            </div>
+            <div className="summary-card">
+              <span className="label">收益率</span>
+              <span className={`value ${totalSummary.returnRate >= 0 ? 'positive' : 'negative'}`}>
+                {formatPercent(totalSummary.returnRate)}
+              </span>
+            </div>
+          </div>
+        )}
+
         <div className="section-header">
           <h2>我的投资组合</h2>
           <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
@@ -112,7 +159,7 @@ export default function Dashboard() {
                   {summary ? (
                     <>
                       <div className="card-value">
-                        <span className="label">总资产</span>
+                        <span className="label">资产</span>
                         <span className="value">
                           {formatCurrency(summary.totalValue, summary.currency)}
                         </span>

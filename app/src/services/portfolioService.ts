@@ -133,9 +133,6 @@ export class PortfolioService {
     const portfolio = await prisma.portfolio.findFirst({
       where: { id: portfolioId, userId },
       include: {
-        subPortfolios: {
-          include: { assets: true },
-        },
         assets: true,
       },
     });
@@ -148,7 +145,8 @@ export class PortfolioService {
     let totalCost = 0;
     const allocationMap: Record<string, number> = {};
 
-    // 计算直接资产
+    // 计算所有资产（包括直接资产和子组合内的资产）
+    // portfolio.assets 已经包含了所有关联的资产
     for (const asset of portfolio.assets) {
       const rate = await getExchangeRate(asset.currency, portfolio.baseCurrency);
       const assetValue = convertCurrency(asset.quantity * asset.currentPrice, rate);
@@ -161,23 +159,6 @@ export class PortfolioService {
         allocationMap[asset.market] = 0;
       }
       allocationMap[asset.market] += assetValue;
-    }
-
-    // 计算子组合内的资产
-    for (const subPortfolio of portfolio.subPortfolios) {
-      for (const asset of subPortfolio.assets) {
-        const rate = await getExchangeRate(asset.currency, portfolio.baseCurrency);
-        const assetValue = convertCurrency(asset.quantity * asset.currentPrice, rate);
-        const assetCost = convertCurrency(asset.quantity * asset.costPrice, rate);
-
-        totalValue += assetValue;
-        totalCost += assetCost;
-
-        if (!allocationMap[asset.market]) {
-          allocationMap[asset.market] = 0;
-        }
-        allocationMap[asset.market] += assetValue;
-      }
     }
 
     const assetAllocation = Object.entries(allocationMap).map(([type, value]) => ({

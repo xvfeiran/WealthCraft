@@ -108,6 +108,7 @@ export const assetApi = {
     contributionAmount?: number;
     allocationPercent?: number;
     source?: string;
+    channelId?: string;
   }) => api.post<ApiResponse>(`/assets/portfolio/${portfolioId}`, data),
 
   update: (id: string, data: {

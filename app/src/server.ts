@@ -18,6 +18,13 @@ function logSyncResult(result: Awaited<ReturnType<typeof instrumentSyncService.s
   logger.info(`    Stock: ${result.sse.stock.success} success, ${result.sse.stock.failed} failed`);
   logger.info(`    Fund: ${result.sse.fund.success} success, ${result.sse.fund.failed} failed`);
   logger.info(`    Bond: ${result.sse.bond.success} success, ${result.sse.bond.failed} failed`);
+  // 新增：基金同步日志
+  if (result.funds) {
+    logger.info('  Chinese Funds:');
+    Object.entries(result.funds).forEach(([source, data]: [string, any]) => {
+      logger.info(`    ${source}: ${data.success} success, ${data.failed || 0} failed`);
+    });
+  }
 }
 
 async function main() {
@@ -75,6 +82,10 @@ async function main() {
       const stats = await instrumentSyncService.getStats();
       logger.info(`Current market instruments: ${stats.total} (by market: ${JSON.stringify(stats.byMarket)})`);
 
+      // 新增：检查基金数据
+      const fundStats = await instrumentSyncService.getFundStats();
+      logger.info(`Current funds: ${fundStats.total} (by market: ${JSON.stringify(fundStats.byMarket)})`);
+
       if (stats.total === 0) {
         logger.info('No market instruments found, starting initial sync for all exchanges...');
         instrumentSyncService.syncAll()
@@ -84,6 +95,19 @@ async function main() {
           })
           .catch((err) => {
             logger.error('Initial sync failed', err);
+          });
+      } else if (fundStats.total === 0) {
+        // 新增：如果交易所数据存在但基金数据为空，仅同步基金
+        logger.info('No fund data found, starting initial fund sync...');
+        instrumentSyncService.syncChineseFunds()
+          .then((result) => {
+            logger.info('Initial fund sync completed:');
+            Object.entries(result).forEach(([source, data]) => {
+              logger.info(`  ${source}: ${data.success} success, ${data.failed || 0} failed`);
+            });
+          })
+          .catch((err) => {
+            logger.error('Initial fund sync failed', err);
           });
       }
     }

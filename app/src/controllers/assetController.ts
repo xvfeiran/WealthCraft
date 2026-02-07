@@ -42,6 +42,7 @@ export class AssetController {
         contributionAmount,
         allocationPercent,
         source,
+        channelId,
       } = req.body;
 
       if (!symbol || !name || !market) {
@@ -60,6 +61,7 @@ export class AssetController {
         contributionAmount,
         allocationPercent,
         source,
+        channelId,
       });
 
       res.status(201).json({

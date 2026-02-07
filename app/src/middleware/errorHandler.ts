@@ -30,6 +30,40 @@ export const errorHandler = (
 
   // Prisma error handling
   if (err.name === 'PrismaClientKnownRequestError') {
+    const prismaError = err as any;
+
+    // Foreign key constraint violation
+    if (prismaError.code === 'P2003') {
+      // Check if it's related to User
+      if (prismaError.meta?.modelName === 'Portfolio') {
+        return res.status(400).json({
+          success: false,
+          error: 'User not found or database was reset. Please register or login first.',
+        });
+      }
+
+      // Check if it's related to Channel
+      if (prismaError.meta?.modelName === 'Channel') {
+        return res.status(400).json({
+          success: false,
+          error: 'User not found. Please login first.',
+        });
+      }
+
+      return res.status(400).json({
+        success: false,
+        error: 'Related record not found',
+      });
+    }
+
+    // Record not found
+    if (prismaError.code === 'P2025') {
+      return res.status(404).json({
+        success: false,
+        error: 'Record not found',
+      });
+    }
+
     return res.status(400).json({
       success: false,
       error: 'Database operation failed',

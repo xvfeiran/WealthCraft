@@ -207,15 +207,15 @@ export default function PortfolioDetail() {
       {summary && (
         <div className="summary-cards">
           <div className="summary-card">
-            <span className="label">总资产</span>
+            <span className="label">资产</span>
             <span className="value">{formatCurrency(summary.totalValue, summary.currency)}</span>
           </div>
           <div className="summary-card">
-            <span className="label">总成本</span>
+            <span className="label">成本</span>
             <span className="value">{formatCurrency(summary.totalCost, summary.currency)}</span>
           </div>
           <div className="summary-card">
-            <span className="label">总收益</span>
+            <span className="label">收益</span>
             <span className={`value ${summary.totalReturn >= 0 ? 'positive' : 'negative'}`}>
               {summary.totalReturn >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
               {formatCurrency(summary.totalReturn, summary.currency)}
@@ -643,11 +643,30 @@ function AddAssetModal({
   const [costPrice, setCostPrice] = useState('');
   const [allocationPercent, setAllocationPercent] = useState('');
   const [contributionAmount, setContributionAmount] = useState('');
+  const [channelId, setChannelId] = useState('');
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [loadingChannels, setLoadingChannels] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   // 只有直接添加到组合（非子组合）时才显示配置选项
   const showRuleConfig = !subPortfolioId && portfolio.ruleType;
+
+  // 加载渠道列表
+  useEffect(() => {
+    const loadChannels = async () => {
+      setLoadingChannels(true);
+      try {
+        const res = await channelApi.getAllSimple();
+        setChannels(res.data.data || []);
+      } catch (err) {
+        console.error('Failed to load channels', err);
+      } finally {
+        setLoadingChannels(false);
+      }
+    };
+    loadChannels();
+  }, []);
 
   // 搜索投资标的
   const handleSearch = useCallback(async () => {
@@ -697,6 +716,7 @@ function AddAssetModal({
         allocationPercent: parseFloat(allocationPercent) || 0,
         contributionAmount: parseFloat(contributionAmount) || 0,
         source: selectedInstrument ? 'SYNC' : 'MANUAL',
+        channelId: channelId || undefined,
       });
       onAdded();
     } catch (err: any) {
@@ -851,24 +871,60 @@ function AddAssetModal({
             </div>
 
             <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="market">市场</label>
-                <select id="market" value={market} onChange={(e) => setMarket(e.target.value)}>
-                  <option value="SSE">上交所-股票</option>
-                  <option value="SSE_FUND">上交所-基金</option>
-                  <option value="SSE_BOND">上交所-债券</option>
-                  <option value="NASDAQ">NASDAQ</option>
-                  <option value="NYSE">NYSE</option>
-                  <option value="AMEX">AMEX</option>
-                  <option value="US_ETF">美股ETF</option>
-                </select>
-              </div>
+              {selectedInstrument ? (
+                <div className="form-group">
+                  <label>市场</label>
+                  <input
+                    type="text"
+                    value={MARKET_LABELS[market] || market}
+                    disabled
+                    className="readonly-input"
+                  />
+                </div>
+              ) : (
+                <div className="form-group">
+                  <label htmlFor="market">市场</label>
+                  <select id="market" value={market} onChange={(e) => setMarket(e.target.value)}>
+                    <option value="SSE">上交所-股票</option>
+                    <option value="SSE_FUND">上交所-基金</option>
+                    <option value="SSE_BOND">上交所-债券</option>
+                    <option value="NASDAQ">NASDAQ</option>
+                    <option value="NYSE">NYSE</option>
+                    <option value="AMEX">AMEX</option>
+                    <option value="US_ETF">美股ETF</option>
+                  </select>
+                </div>
+              )}
               <div className="form-group">
                 <label htmlFor="currency">币种</label>
                 <select id="currency" value={currency} onChange={(e) => setCurrency(e.target.value)}>
                   <option value="CNY">人民币 (CNY)</option>
                   <option value="USD">美元 (USD)</option>
                 </select>
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="channel">渠道（可选）</label>
+                <select
+                  id="channel"
+                  value={channelId}
+                  onChange={(e) => setChannelId(e.target.value)}
+                  disabled={loadingChannels}
+                >
+                  <option value="">不选择</option>
+                  {channels.map((channel) => (
+                    <option key={channel.id} value={channel.id}>
+                      {channel.name}
+                      {channel.account ? ` (${channel.account})` : ''}
+                    </option>
+                  ))}
+                </select>
+                {loadingChannels && <small>加载渠道中...</small>}
+              </div>
+              <div className="form-group">
+                {/* 空占位，保持表单布局 */}
               </div>
             </div>
 

@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { proxiedFetch } from '../utils/httpClient';
+import { FundSyncService } from './fundSyncService';
 
 interface NASDAQStock {
   symbol: string;
@@ -20,6 +21,14 @@ const US_EXCHANGES = ['NASDAQ', 'NYSE', 'AMEX'] as const;
 type USExchange = typeof US_EXCHANGES[number];
 
 export class InstrumentSyncService {
+  private fundSyncService = new FundSyncService();
+
+  // 新增：同步所有中国基金
+  async syncChineseFunds() {
+    logger.info('Starting Chinese funds sync...');
+    return await this.fundSyncService.syncAll();
+  }
+
   // 同步单个美股交易所数据
   async syncUSExchange(exchange: USExchange): Promise<{ success: number; failed: number }> {
     const taskId = await this.createSyncTask(exchange);
@@ -120,7 +129,7 @@ export class InstrumentSyncService {
     try {
       await this.updateSyncTask(taskId, 'RUNNING');
 
-      const response = await proxiedFetch('https://api.nasdaq.com/api/screener/etf', {
+      const response = await proxiedFetch('https://api.nasdaq.com/api/screener/etf?download=true', {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           'Accept': 'application/json',
@@ -132,7 +141,7 @@ export class InstrumentSyncService {
       }
 
       const data = await response.json() as any;
-      const rows = data?.data?.records?.data?.rows || [];
+      const rows = data?.data?.data?.rows || [];
 
       logger.info(`Fetched ${rows.length} ETFs from US`);
 
@@ -414,6 +423,7 @@ export class InstrumentSyncService {
       fund: { success: number; failed: number };
       bond: { success: number; failed: number };
     };
+    funds: any; // 新增：基金同步结果
   }> {
     logger.info('Starting full market instruments sync...');
 
@@ -421,8 +431,11 @@ export class InstrumentSyncService {
     const usETF = await this.syncUSETF();
     const sse = await this.syncAllSSE();
 
+    // 新增：基金同步
+    const funds = await this.syncChineseFunds();
+
     logger.info('Full market instruments sync completed');
-    return { usStock, usETF, sse };
+    return { usStock, usETF, sse, funds };
   }
 
   // 搜索投资标的
@@ -483,6 +496,11 @@ export class InstrumentSyncService {
       total,
       byMarket: byMarket.map((m) => ({ market: m.market, count: m._count.id })),
     };
+  }
+
+  // 新增：获取基金统计信息
+  async getFundStats() {
+    return await this.fundSyncService.getStats();
   }
 
   // 清空所有投资标的数据
