@@ -321,6 +321,97 @@ export class PortfolioService {
     await prisma.subPortfolio.delete({ where: { id: subPortfolioId } });
     return { success: true };
   }
+
+  // 获取收益曲线数据
+  async getProfitCurve(portfolioId: string, userId: string): Promise<
+    Array<{ date: string; value: number; cost: number; profit: number; profitRate: number }>
+  > {
+    const portfolio = await prisma.portfolio.findFirst({
+      where: { id: portfolioId, userId },
+      include: {
+        assets: true,
+      },
+    });
+
+    if (!portfolio) {
+      throw new AppError('Portfolio not found', 404);
+    }
+
+    // 获取所有资产的开始日期，并按日期排序
+    const assetDates: Array<{ date: Date; asset: typeof portfolio.assets[0] }> = [];
+    for (const asset of portfolio.assets) {
+      const startDate = new Date(asset.startDate || asset.createdAt);
+      startDate.setHours(0, 0, 0, 0);
+      assetDates.push({ date: startDate, asset });
+    }
+    assetDates.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    if (assetDates.length === 0) {
+      return [];
+    }
+
+    // 为每个资产添加日期生成一个数据点，以及今天的数据点
+    const curveData: Array<{ date: string; value: number; cost: number; profit: number; profitRate: number }> = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let cumulativeValue = 0;
+    let cumulativeCost = 0;
+
+    // 使用Set来去重，避免同一天有多个数据点
+    const processedDates = new Set<string>();
+
+    for (const item of assetDates) {
+      const dateStr = item.date.toISOString().split('T')[0];
+
+      if (!processedDates.has(dateStr)) {
+        const rate = await getExchangeRate(item.asset.currency, portfolio.baseCurrency);
+        const assetValue = convertCurrency(item.asset.quantity * item.asset.currentPrice, rate);
+        const assetCost = convertCurrency(item.asset.quantity * item.asset.costPrice, rate);
+
+        cumulativeValue += assetValue;
+        cumulativeCost += assetCost;
+
+        curveData.push({
+          date: dateStr,
+          value: cumulativeValue,
+          cost: cumulativeCost,
+          profit: cumulativeValue - cumulativeCost,
+          profitRate: cumulativeCost > 0 ? ((cumulativeValue - cumulativeCost) / cumulativeCost) * 100 : 0,
+        });
+
+        processedDates.add(dateStr);
+      }
+    }
+
+    // 添加今天的数据点（如果还没有）
+    const todayStr = today.toISOString().split('T')[0];
+    if (!processedDates.has(todayStr)) {
+      // 重新计算当前总值
+      let totalValue = 0;
+      let totalCost = 0;
+      for (const asset of portfolio.assets) {
+        const rate = await getExchangeRate(asset.currency, portfolio.baseCurrency);
+        const assetValue = convertCurrency(asset.quantity * asset.currentPrice, rate);
+        const assetCost = convertCurrency(asset.quantity * asset.costPrice, rate);
+        totalValue += assetValue;
+        totalCost += assetCost;
+      }
+
+      curveData.push({
+        date: todayStr,
+        value: totalValue,
+        cost: totalCost,
+        profit: totalValue - totalCost,
+        profitRate: totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0,
+      });
+    }
+
+    // 按日期排序
+    curveData.sort((a, b) => a.date.localeCompare(b.date));
+
+    return curveData;
+  }
 }
 
 export const portfolioService = new PortfolioService();

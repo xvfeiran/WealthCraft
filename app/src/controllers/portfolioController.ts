@@ -222,6 +222,25 @@ export class PortfolioController {
       next(error);
     }
   }
+
+  async getProfitCurve(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) {
+        throw new AppError('Unauthorized', 401);
+      }
+
+      const { id } = req.params;
+
+      const profitCurve = await portfolioService.getProfitCurve(id, req.user.userId);
+
+      res.json({
+        success: true,
+        data: profitCurve,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const portfolioController = new PortfolioController();
