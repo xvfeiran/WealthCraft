@@ -111,14 +111,14 @@ async function main() {
       } else if (fundStats.total === 0) {
         // 新增：如果交易所数据存在但基金数据为空，仅同步基金
         logger.info('No fund data found, starting initial fund sync...');
-        instrumentSyncService.syncChineseFunds()
+        instrumentSyncService.syncAllFunds()
           .then((result) => {
             logger.info('Initial fund sync completed:');
             Object.entries(result).forEach(([source, data]) => {
-              logger.info(`  ${source}: ${data.success} success, ${data.failed || 0} failed`);
+              logger.info(`  ${source}: ${data.success} success, ${data.failed} failed`);
             });
           })
-          .catch((err) => {
+          .catch((err: any) => {
             logger.error('Initial fund sync failed', err);
           });
       }

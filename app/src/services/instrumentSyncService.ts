@@ -1,8 +1,11 @@
 import { prisma } from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { proxiedFetch } from '../utils/httpClient';
-import { FundSyncService } from './fundSyncService';
-import { binanceSyncService } from './binanceSyncService';
+import { NFFundExtractor } from './fundDataExtractors/nffundExtractor';
+import { BoseraExtractor } from './fundDataExtractors/boseraExtractor';
+import { EFundsExtractor } from './fundDataExtractors/efundsExtractor';
+import { FundData } from './types/fund.types';
+import { FundDataValidator } from './validators/fundDataValidator';
 
 interface NASDAQStock {
   symbol: string;
@@ -22,24 +25,107 @@ const US_EXCHANGES = ['NASDAQ', 'NYSE', 'AMEX'] as const;
 type USExchange = typeof US_EXCHANGES[number];
 
 export class InstrumentSyncService {
-  private fundSyncService = new FundSyncService();
+  /**
+   * 并行同步所有数据源
+   * 所有数据源（美股交易所、上交所、基金公司）在同一抽象层，并行执行
+   */
+  async syncAll(): Promise<{
+    usStock: Record<USExchange, { success: number; failed: number }>;
+    usETF: { success: number; failed: number };
+    sse: {
+      stock: { success: number; failed: number };
+      fund: { success: number; failed: number };
+      bond: { success: number; failed: number };
+    };
+    funds: {
+      NF_FUND: { success: number; failed: number };
+      BOSERA: { success: number; failed: number };
+      EFUNDS: { success: number; failed: number };
+    };
+  }> {
+    logger.info('Starting full market instruments sync (parallel)...');
 
-  // 新增：同步所有中国基金
-  async syncChineseFunds() {
-    logger.info('Starting Chinese funds sync...');
-    return await this.fundSyncService.syncAll();
+    // 并行执行所有同步任务
+    const results = await Promise.all([
+      this.syncAllUS(),
+      this.syncUSETF(),
+      this.syncAllSSE(),
+      this.syncAllFunds(),
+    ]);
+
+    const [usStock, usETF, sse, funds] = results;
+
+    logger.info('Full market instruments sync completed');
+    return { usStock, usETF, sse, funds };
   }
 
-  // 同步币安加密货币（所有USDT交易对）
-  async syncBinance(): Promise<{ success: number; failed: number; total: number }> {
-    logger.info('Starting Binance cryptocurrency sync...');
-    return await binanceSyncService.syncUSDTMarkets();
+  /**
+   * 并行同步所有美股交易所
+   */
+  async syncAllUS(): Promise<Record<USExchange, { success: number; failed: number }>> {
+    logger.info('Starting all US exchanges sync (parallel)...');
+
+    const promises = US_EXCHANGES.map(exchange => this.syncUSExchange(exchange));
+    const results = await Promise.all(promises);
+
+    const resultRecord: Record<USExchange, { success: number; failed: number }> = {} as any;
+    US_EXCHANGES.forEach((exchange, index) => {
+      resultRecord[exchange] = results[index];
+    });
+
+    logger.info('All US exchanges sync completed');
+    return resultRecord;
   }
 
-  // 同步币安前N名加密货币
-  async syncBinanceTop(limit: number = 100): Promise<{ success: number; failed: number; total: number }> {
-    logger.info(`Starting Binance top ${limit} cryptos sync...`);
-    return await binanceSyncService.syncTopCryptos(limit);
+  /**
+   * 并行同步所有上交所数据
+   */
+  async syncAllSSE(): Promise<{
+    stock: { success: number; failed: number };
+    fund: { success: number; failed: number };
+    bond: { success: number; failed: number };
+  }> {
+    logger.info('Starting all SSE sync (parallel)...');
+
+    const results = await Promise.all([
+      this.syncSSEStock(),
+      this.syncSSEFund(),
+      this.syncSSEBond(),
+    ]);
+
+    const [stock, fund, bond] = results;
+
+    logger.info('All SSE sync completed');
+    return { stock, fund, bond };
+  }
+
+  /**
+   * 并行同步所有基金公司数据
+   * 每个基金提取器作为独立数据源，与交易所保持同一抽象层
+   */
+  async syncAllFunds(): Promise<{
+    NF_FUND: { success: number; failed: number };
+    BOSERA: { success: number; failed: number };
+    EFUNDS: { success: number; failed: number };
+  }> {
+    logger.info('Starting all funds sync (parallel)...');
+
+    const promises = [
+      this.syncFundSource(new NFFundExtractor()),
+      this.syncFundSource(new BoseraExtractor()),
+      this.syncFundSource(new EFundsExtractor()),
+    ];
+
+    const results = await Promise.all(promises);
+
+    const funds = {
+      NF_FUND: results[0],
+      BOSERA: results[1],
+      EFUNDS: results[2],
+    };
+
+    logger.info('All funds sync completed');
+    return funds;
   }
 
   // 同步单个美股交易所数据
@@ -122,15 +208,6 @@ export class InstrumentSyncService {
     }
 
     return { success, failed };
-  }
-
-  // 同步所有美股交易所
-  async syncAllUS(): Promise<Record<USExchange, { success: number; failed: number }>> {
-    const results = {} as Record<USExchange, { success: number; failed: number }>;
-    for (const exchange of US_EXCHANGES) {
-      results[exchange] = await this.syncUSExchange(exchange);
-    }
-    return results;
   }
 
   // 同步美股ETF数据
@@ -410,49 +487,112 @@ export class InstrumentSyncService {
     return { success, failed };
   }
 
-  // 同步所有上交所数据
-  async syncAllSSE(): Promise<{
-    stock: { success: number; failed: number };
-    fund: { success: number; failed: number };
-    bond: { success: number; failed: number };
-  }> {
-    const stock = await this.syncSSEStock();
-    const fund = await this.syncSSEFund();
-    const bond = await this.syncSSEBond();
-    return { stock, fund, bond };
+  /**
+   * 同步单个基金数据源
+   * 每个基金提取器作为独立数据源，与交易所保持同一抽象层
+   */
+  async syncFundSource(extractor: any): Promise<{ success: number; failed: number }> {
+    const source = extractor.getSource();
+    const taskId = await this.createSyncTask(source);
+    let success = 0;
+    let failed = 0;
+
+    try {
+      await this.updateSyncTask(taskId, 'RUNNING');
+      logger.info(`[${source}] Starting sync...`);
+
+      // 获取数据
+      const funds = await extractor.fetch();
+      logger.info(`[${source}] Fetched ${funds.length} funds`);
+
+      // 处理每只基金
+      for (const fund of funds) {
+        try {
+          await this.upsertFund(fund);
+          success++;
+        } catch (error) {
+          failed++;
+          logger.error(`[${source}] Failed to upsert fund ${fund.code}`, error);
+        }
+      }
+
+      await this.updateSyncTask(taskId, 'SUCCESS', funds.length, success, failed);
+      logger.info(`[${source}] Completed: ${success} success, ${failed} failed`);
+
+      return { success, failed };
+    } catch (error: any) {
+      await this.updateSyncTask(taskId, 'FAILED', 0, success, failed, error.message);
+      logger.error(`[${source}] Failed`, error);
+      return { success, failed };
+    }
+  }
+
+  /**
+   * 更新或插入基金数据
+   */
+  private async upsertFund(fund: FundData): Promise<void> {
+    // 数据验证
+    const validation = FundDataValidator.validate(fund);
+    if (!validation.valid) {
+      throw new Error(`Invalid fund data: ${validation.errors.join(', ')}`);
+    }
+
+    await prisma.marketInstrument.upsert({
+      where: {
+        symbol_market: {
+          symbol: fund.code,
+          market: fund.market,
+        },
+      },
+      update: {
+        name: fund.name,
+        lastPrice: fund.lastPrice,
+        changePercent: fund.change,
+        fundType: fund.fundType,
+        riskLevel: fund.riskLevel,
+        managerName: fund.managerName,
+        yield7d: fund.yield7d,
+        yield1w: fund.yield1w,
+        yield1m: fund.yield1m,
+        yield3m: fund.yield3m,
+        yield6m: fund.yield6m,
+        yield1y: fund.yield1y,
+        yieldYtd: fund.yieldYtd,
+        yieldSinceInception: fund.yieldSinceInception,
+        navDate: fund.navDate,
+        setupDate: fund.setupDate,
+        isActive: fund.isActive,
+        lastSyncAt: new Date(),
+      },
+      create: {
+        symbol: fund.code,
+        name: fund.name,
+        market: fund.market,
+        type: fund.type,
+        currency: 'CNY',
+        lastPrice: fund.lastPrice,
+        changePercent: fund.change,
+        fundType: fund.fundType,
+        riskLevel: fund.riskLevel,
+        managerName: fund.managerName,
+        yield7d: fund.yield7d,
+        yield1w: fund.yield1w,
+        yield1m: fund.yield1m,
+        yield3m: fund.yield3m,
+        yield6m: fund.yield6m,
+        yield1y: fund.yield1y,
+        yieldYtd: fund.yieldYtd,
+        yieldSinceInception: fund.yieldSinceInception,
+        navDate: fund.navDate,
+        setupDate: fund.setupDate,
+        isActive: fund.isActive,
+      },
+    });
   }
 
   // 保留旧方法名兼容性
   async syncSSE(): Promise<{ success: number; failed: number }> {
     return this.syncSSEStock();
-  }
-
-  // 同步所有交易所
-  async syncAll(): Promise<{
-    usStock: Record<USExchange, { success: number; failed: number }>;
-    usETF: { success: number; failed: number };
-    sse: {
-      stock: { success: number; failed: number };
-      fund: { success: number; failed: number };
-      bond: { success: number; failed: number };
-    };
-    funds: any; // 新增：基金同步结果
-    binance: { success: number; failed: number; total: number }; // 新增：币安加密货币同步结果
-  }> {
-    logger.info('Starting full market instruments sync...');
-
-    const usStock = await this.syncAllUS();
-    const usETF = await this.syncUSETF();
-    const sse = await this.syncAllSSE();
-
-    // 新增：基金同步
-    const funds = await this.syncChineseFunds();
-
-    // 新增：币安加密货币同步
-    const binance = await this.syncBinance();
-
-    logger.info('Full market instruments sync completed');
-    return { usStock, usETF, sse, funds, binance };
   }
 
   // 搜索投资标的
@@ -515,9 +655,25 @@ export class InstrumentSyncService {
     };
   }
 
-  // 新增：获取基金统计信息
+  // 获取基金统计信息
   async getFundStats() {
-    return await this.fundSyncService.getStats();
+    const markets = ['NF_FUND', 'BOSERA', 'EFUNDS'];
+
+    const counts = await Promise.all(
+      markets.map(async (market) => ({
+        market,
+        count: await prisma.marketInstrument.count({
+          where: { market },
+        }),
+      }))
+    );
+
+    const total = counts.reduce((sum, item) => sum + item.count, 0);
+
+    return {
+      total,
+      byMarket: counts.filter(item => item.count > 0),
+    };
   }
 
   // 清空所有投资标的数据

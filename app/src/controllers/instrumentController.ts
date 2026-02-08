@@ -109,7 +109,7 @@ export class InstrumentController {
       }
 
       const { market } = req.params;
-      const validMarkets = ['NASDAQ', 'NYSE', 'AMEX', 'US_ETF', 'SSE', 'SSE_STOCK', 'SSE_FUND', 'SSE_BOND', 'BINANCE'];
+      const validMarkets = ['NASDAQ', 'NYSE', 'AMEX', 'US_ETF', 'SSE', 'SSE_STOCK', 'SSE_FUND', 'SSE_BOND', 'NF_FUND', 'BOSERA', 'EFUNDS'];
       const marketUpper = market.toUpperCase();
 
       if (!validMarkets.includes(marketUpper)) {
@@ -136,8 +136,11 @@ export class InstrumentController {
         case 'SSE_BOND':
           instrumentSyncService.syncSSEBond().catch(console.error);
           break;
-        case 'BINANCE':
-          instrumentSyncService.syncBinance().catch(console.error);
+        case 'NF_FUND':
+        case 'BOSERA':
+        case 'EFUNDS':
+          // 基金公司同步需要通过syncAllFunds()或直接调用syncFundSource()
+          instrumentSyncService.syncAllFunds().catch(console.error);
           break;
         default:
           // NASDAQ, NYSE, AMEX
