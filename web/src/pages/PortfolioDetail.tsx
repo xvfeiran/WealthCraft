@@ -147,18 +147,45 @@ export default function PortfolioDetail() {
   };
 
   // Get deviation color based on deviation value
+  // Positive deviation (over-allocated): Red color system
+  // Negative deviation (under-allocated): Green color system
+  // Larger absolute deviation = darker/more intense color
   const getDeviationColor = (deviation: number) => {
     const absDeviation = Math.abs(deviation);
-    // Define intensity levels (larger deviation = darker color)
-    if (absDeviation >= 10) return deviation > 0 ? '#c53030' : '#276749'; // Dark red/dark green
-    if (absDeviation >= 5) return deviation > 0 ? '#e53e3e' : '#38a169'; // Medium red/medium green
-    if (absDeviation >= 2) return deviation > 0 ? '#fc8181' : '#68d391'; // Light red/light green
-    return deviation > 0 ? '#fed7d7' : '#c6f6d5'; // Very light red/very light green
+
+    // Define intensity levels (larger deviation = darker/more saturated color)
+    if (absDeviation >= 15) {
+      // Very high deviation - darkest colors
+      return deviation > 0 ? '#9B2C2C' : '#22543D'; // Dark red / Dark green
+    }
+    if (absDeviation >= 10) {
+      // High deviation
+      return deviation > 0 ? '#C53030' : '#276749'; // Red / Green
+    }
+    if (absDeviation >= 7) {
+      // Medium-high deviation
+      return deviation > 0 ? '#E53E3E' : '#2F855A'; // Medium red / Medium green
+    }
+    if (absDeviation >= 5) {
+      // Medium deviation
+      return deviation > 0 ? '#FC8181' : '#38A169'; // Light red / Light green
+    }
+    if (absDeviation >= 3) {
+      // Low-medium deviation
+      return deviation > 0 ? '#FEB2B2' : '#68D391'; // Very light red / Very light green
+    }
+    if (absDeviation >= 1) {
+      // Low deviation
+      return deviation > 0 ? '#FED7D7' : '#9AE6B4'; // Pale red / Pale green
+    }
+    // Minimal deviation - very light colors
+    return deviation > 0 ? '#FFF5F5' : '#C6F6D5'; // Very pale red / Very pale green
   };
 
   const getDeviationBadgeStyle = (deviation: number): React.CSSProperties => ({
     backgroundColor: getDeviationColor(deviation),
-    color: Math.abs(deviation) >= 5 ? '#fff' : '#000',
+    // Use white text on darker backgrounds (deviation >= 7%), black text on lighter backgrounds
+    color: Math.abs(deviation) >= 7 ? '#fff' : '#000',
     padding: '2px 8px',
     borderRadius: '4px',
     fontSize: '12px',
@@ -479,7 +506,15 @@ export default function PortfolioDetail() {
                       <div className="sub-portfolio-summary-body">
                         <div className="summary-item">
                           <span className="label">当前占比</span>
-                          <span className="value">{item.currentPercent.toFixed(1)}%</span>
+                          <span
+                            className="value"
+                            style={{
+                              color: getDeviationColor(item.deviation),
+                              fontWeight: 'bold',
+                            }}
+                          >
+                            {item.currentPercent.toFixed(1)}%
+                          </span>
                         </div>
                         {item.subPortfolio.allocationPercent > 0 && (
                           <div className="summary-item">
@@ -545,7 +580,20 @@ export default function PortfolioDetail() {
                         {portfolio.ruleType === 'CONTRIBUTION' && subPortfolio.contributionAmount > 0 && (
                           <span className="contribution-badge">定投: {formatCurrency(subPortfolio.contributionAmount, portfolio.baseCurrency)}</span>
                         )}
-                        {allocations && (
+                        {allocations && portfolio.ruleType === 'ALLOCATION' && (
+                          <span
+                            className="allocation-badge"
+                            style={{
+                              backgroundColor: getDeviationColor(
+                                allocations.getSubPortfolioPercent(subPortfolio.id) - subPortfolio.allocationPercent
+                              ),
+                              color: Math.abs(allocations.getSubPortfolioPercent(subPortfolio.id) - subPortfolio.allocationPercent) >= 5 ? '#fff' : '#000',
+                            }}
+                          >
+                            当前: {allocations.getSubPortfolioPercent(subPortfolio.id).toFixed(1)}%
+                          </span>
+                        )}
+                        {allocations && portfolio.ruleType !== 'ALLOCATION' && (
                           <span className="allocation-badge">
                             当前: {allocations.getSubPortfolioPercent(subPortfolio.id).toFixed(1)}%
                           </span>
