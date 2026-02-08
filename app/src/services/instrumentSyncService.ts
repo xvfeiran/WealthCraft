@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { proxiedFetch } from '../utils/httpClient';
 import { FundSyncService } from './fundSyncService';
+import { binanceSyncService } from './binanceSyncService';
 
 interface NASDAQStock {
   symbol: string;
@@ -27,6 +28,18 @@ export class InstrumentSyncService {
   async syncChineseFunds() {
     logger.info('Starting Chinese funds sync...');
     return await this.fundSyncService.syncAll();
+  }
+
+  // 同步币安加密货币（所有USDT交易对）
+  async syncBinance(): Promise<{ success: number; failed: number; total: number }> {
+    logger.info('Starting Binance cryptocurrency sync...');
+    return await binanceSyncService.syncUSDTMarkets();
+  }
+
+  // 同步币安前N名加密货币
+  async syncBinanceTop(limit: number = 100): Promise<{ success: number; failed: number; total: number }> {
+    logger.info(`Starting Binance top ${limit} cryptos sync...`);
+    return await binanceSyncService.syncTopCryptos(limit);
   }
 
   // 同步单个美股交易所数据
@@ -424,6 +437,7 @@ export class InstrumentSyncService {
       bond: { success: number; failed: number };
     };
     funds: any; // 新增：基金同步结果
+    binance: { success: number; failed: number; total: number }; // 新增：币安加密货币同步结果
   }> {
     logger.info('Starting full market instruments sync...');
 
@@ -434,8 +448,11 @@ export class InstrumentSyncService {
     // 新增：基金同步
     const funds = await this.syncChineseFunds();
 
+    // 新增：币安加密货币同步
+    const binance = await this.syncBinance();
+
     logger.info('Full market instruments sync completed');
-    return { usStock, usETF, sse, funds };
+    return { usStock, usETF, sse, funds, binance };
   }
 
   // 搜索投资标的

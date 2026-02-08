@@ -11,6 +11,7 @@ const MARKET_LABELS: Record<string, string> = {
   NYSE: 'NYSE',
   AMEX: 'AMEX',
   US_ETF: '美股ETF',
+  BINANCE: '币安加密货币',
 };
 
 interface AddAssetModalProps {
@@ -192,6 +193,7 @@ export function AddAssetModal({
                 <option value="NYSE">NYSE</option>
                 <option value="AMEX">AMEX</option>
                 <option value="US_ETF">美股ETF</option>
+                <option value="BINANCE">币安加密货币</option>
               </select>
               <button
                 type="button"
@@ -307,6 +309,7 @@ export function AddAssetModal({
                     <option value="NYSE">NYSE</option>
                     <option value="AMEX">AMEX</option>
                     <option value="US_ETF">美股ETF</option>
+                    <option value="BINANCE">币安加密货币</option>
                   </select>
                 </div>
               )}

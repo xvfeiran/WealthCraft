@@ -109,7 +109,7 @@ export class InstrumentController {
       }
 
       const { market } = req.params;
-      const validMarkets = ['NASDAQ', 'NYSE', 'AMEX', 'US_ETF', 'SSE', 'SSE_STOCK', 'SSE_FUND', 'SSE_BOND'];
+      const validMarkets = ['NASDAQ', 'NYSE', 'AMEX', 'US_ETF', 'SSE', 'SSE_STOCK', 'SSE_FUND', 'SSE_BOND', 'BINANCE'];
       const marketUpper = market.toUpperCase();
 
       if (!validMarkets.includes(marketUpper)) {
@@ -135,6 +135,9 @@ export class InstrumentController {
           break;
         case 'SSE_BOND':
           instrumentSyncService.syncSSEBond().catch(console.error);
+          break;
+        case 'BINANCE':
+          instrumentSyncService.syncBinance().catch(console.error);
           break;
         default:
           // NASDAQ, NYSE, AMEX
