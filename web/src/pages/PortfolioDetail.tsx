@@ -706,15 +706,7 @@ export default function PortfolioDetail() {
 
             {/* 直接资产（不在子组合内）*/}
             <div className="direct-assets-section">
-              <h4>直接持有的资产</h4>
-              {assets.filter(a => !a.subPortfolioId).length === 0 ? (
-                <div className="empty-state">
-                  <p>还没有直接添加的资产</p>
-                  <button className="btn btn-primary" onClick={() => { setAddAssetToSubPortfolio(null); setShowAddAssetModal(true); }}>
-                    添加资产
-                  </button>
-                </div>
-              ) : (
+              {assets.filter(a => !a.subPortfolioId).length > 0 && (
                 <table className="assets-table">
                   <thead>
                     <tr>
