@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { Market } from '../types';
+import { resolveMarketPrices, resolveMarketPrice } from '../utils/priceResolver';
 
 export type DataSource = 'SYNC' | 'MANUAL';
 
@@ -20,16 +21,22 @@ export class AssetService {
       orderBy: { createdAt: 'desc' },
     });
 
+    const priceMap = await resolveMarketPrices(assets);
+
     // Asset列表保持原始货币，不做转换
     // 汇率转换只在portfolio summary中做
-    return assets.map((asset) => ({
-      ...asset,
-      totalValue: asset.quantity * asset.currentPrice,
-      totalCost: asset.quantity * asset.costPrice,
-      profitLoss: asset.quantity * (asset.currentPrice - asset.costPrice),
-      profitLossPercent:
-        asset.costPrice > 0 ? ((asset.currentPrice - asset.costPrice) / asset.costPrice) * 100 : 0,
-    }));
+    return assets.map((asset) => {
+      const currentPrice = priceMap.get(asset.id) ?? asset.currentPrice;
+      return {
+        ...asset,
+        currentPrice,
+        totalValue: asset.quantity * currentPrice,
+        totalCost: asset.quantity * asset.costPrice,
+        profitLoss: asset.quantity * (currentPrice - asset.costPrice),
+        profitLossPercent:
+          asset.costPrice > 0 ? ((currentPrice - asset.costPrice) / asset.costPrice) * 100 : 0,
+      };
+    });
   }
 
   async create(
@@ -190,14 +197,17 @@ export class AssetService {
       throw new AppError('Asset not found', 404);
     }
 
+    const currentPrice = await resolveMarketPrice(asset);
+
     // Asset详情保持原始货币，不做转换
     return {
       ...asset,
-      totalValue: asset.quantity * asset.currentPrice,
+      currentPrice,
+      totalValue: asset.quantity * currentPrice,
       totalCost: asset.quantity * asset.costPrice,
-      profitLoss: asset.quantity * (asset.currentPrice - asset.costPrice),
+      profitLoss: asset.quantity * (currentPrice - asset.costPrice),
       profitLossPercent:
-        asset.costPrice > 0 ? ((asset.currentPrice - asset.costPrice) / asset.costPrice) * 100 : 0,
+        asset.costPrice > 0 ? ((currentPrice - asset.costPrice) / asset.costPrice) * 100 : 0,
     };
   }
 
@@ -235,38 +245,6 @@ export class AssetService {
     return updatedAsset;
   }
 
-  async updatePrice(assetId: string, newPrice: number, source: string = 'SYNC') {
-    const asset = await prisma.asset.findUnique({ where: { id: assetId } });
-
-    if (!asset) {
-      throw new AppError('Asset not found', 404);
-    }
-
-    // Only update if source is SYNC, skip manual assets
-    if (asset.source === 'MANUAL') {
-      return asset;
-    }
-
-    const oldPrice = asset.currentPrice;
-
-    // Log the price change
-    await prisma.syncLog.create({
-      data: {
-        assetId,
-        oldPrice,
-        newPrice,
-        source,
-      },
-    });
-
-    // Update asset price
-    const updatedAsset = await prisma.asset.update({
-      where: { id: assetId },
-      data: { currentPrice: newPrice },
-    });
-
-    return updatedAsset;
-  }
 }
 
 export const assetService = new AssetService();

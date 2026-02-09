@@ -9,6 +9,5 @@ router.use(authenticate);
 
 router.get('/stocks/us', marketController.getUSStocks.bind(marketController));
 router.get('/stocks/cn', marketController.getCNStocks.bind(marketController));
-router.post('/sync', marketController.syncPrices.bind(marketController));
 
 export default router;

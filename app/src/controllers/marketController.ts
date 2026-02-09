@@ -40,23 +40,6 @@ export class MarketController {
     }
   }
 
-  async syncPrices(req: AuthRequest, res: Response, next: NextFunction) {
-    try {
-      if (!req.user) {
-        throw new AppError('Unauthorized', 401);
-      }
-
-      const result = await marketDataService.syncAllAssetPrices();
-
-      res.json({
-        success: true,
-        data: result,
-        message: `Sync completed: ${result.updated} updated, ${result.failed} failed`,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
 }
 
 export const marketController = new MarketController();

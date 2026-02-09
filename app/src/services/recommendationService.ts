@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { getExchangeRate, convertCurrency } from '../utils/currency';
+import { resolveMarketPrices } from '../utils/priceResolver';
 
 // 子组合或直接资产的当前价值信息
 interface AllocationItem {
@@ -53,6 +54,9 @@ export class RecommendationService {
       return [];
     }
 
+    // 批量解析所有资产价格
+    const priceMap = await resolveMarketPrices(portfolio.assets);
+
     // 计算组合总价值和各项当前价值
     const items: AllocationItem[] = [];
     let totalValue = 0;
@@ -61,8 +65,9 @@ export class RecommendationService {
     for (const subPortfolio of portfolio.subPortfolios) {
       let subValue = 0;
       for (const asset of subPortfolio.assets) {
+        const currentPrice = priceMap.get(asset.id) ?? asset.currentPrice;
         const rate = await getExchangeRate(asset.currency, portfolio.baseCurrency);
-        const assetValue = convertCurrency(asset.quantity * asset.currentPrice, rate);
+        const assetValue = convertCurrency(asset.quantity * currentPrice, rate);
         subValue += assetValue;
       }
       totalValue += subValue;
@@ -78,8 +83,9 @@ export class RecommendationService {
 
     // 处理直接资产
     for (const asset of portfolio.assets) {
+      const currentPrice = priceMap.get(asset.id) ?? asset.currentPrice;
       const rate = await getExchangeRate(asset.currency, portfolio.baseCurrency);
-      const assetValue = convertCurrency(asset.quantity * asset.currentPrice, rate);
+      const assetValue = convertCurrency(asset.quantity * currentPrice, rate);
       totalValue += assetValue;
       items.push({
         id: asset.id,
@@ -166,6 +172,9 @@ export class RecommendationService {
       return [];
     }
 
+    // 批量解析所有资产价格
+    const priceMap = await resolveMarketPrices(portfolio.assets);
+
     // 计算当前组合总价值
     const items: AllocationItem[] = [];
     let currentTotal = 0;
@@ -173,8 +182,9 @@ export class RecommendationService {
     for (const subPortfolio of portfolio.subPortfolios) {
       let subValue = 0;
       for (const asset of subPortfolio.assets) {
+        const currentPrice = priceMap.get(asset.id) ?? asset.currentPrice;
         const rate = await getExchangeRate(asset.currency, portfolio.baseCurrency);
-        const assetValue = convertCurrency(asset.quantity * asset.currentPrice, rate);
+        const assetValue = convertCurrency(asset.quantity * currentPrice, rate);
         subValue += assetValue;
       }
       currentTotal += subValue;
@@ -189,8 +199,9 @@ export class RecommendationService {
     }
 
     for (const asset of portfolio.assets) {
+      const currentPrice = priceMap.get(asset.id) ?? asset.currentPrice;
       const rate = await getExchangeRate(asset.currency, portfolio.baseCurrency);
-      const assetValue = convertCurrency(asset.quantity * asset.currentPrice, rate);
+      const assetValue = convertCurrency(asset.quantity * currentPrice, rate);
       currentTotal += assetValue;
       items.push({
         id: asset.id,
