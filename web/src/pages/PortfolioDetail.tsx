@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, TrendingUp, TrendingDown, RefreshCw, Search, FolderPlus, Edit2, DollarSign, FileText, ArrowRightLeft } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, TrendingUp, TrendingDown, Search, FolderPlus, Edit2, DollarSign, FileText, ArrowRightLeft } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, PolarAngleAxis, PolarRadiusAxis, Radar, RadarChart, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
-import { portfolioApi, assetApi, recommendationApi, instrumentApi, transactionApi, channelApi } from '../api/client';
-import type { Portfolio, Asset, PortfolioSummary, Recommendation, MarketInstrument, SubPortfolio, Transaction, Channel, Pagination, SubPortfolioSummary } from '../types';
+import { portfolioApi, assetApi, instrumentApi, transactionApi, channelApi } from '../api/client';
+import type { Portfolio, Asset, PortfolioSummary, MarketInstrument, SubPortfolio, Transaction, Channel, Pagination, SubPortfolioSummary } from '../types';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
@@ -23,13 +23,12 @@ export default function PortfolioDetail() {
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
-  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddAssetModal, setShowAddAssetModal] = useState(false);
   const [showSubPortfolioModal, setShowSubPortfolioModal] = useState(false);
   const [editingSubPortfolio, setEditingSubPortfolio] = useState<SubPortfolio | null>(null);
   const [addAssetToSubPortfolio, setAddAssetToSubPortfolio] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'recommendations'>('overview');
+  const [activeTab, setActiveTab] = useState<'assets' | 'chart'>('assets');
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [transactionAsset, setTransactionAsset] = useState<Asset | null>(null);
   const [showAssetDetailModal, setShowAssetDetailModal] = useState(false);
@@ -51,11 +50,10 @@ export default function PortfolioDetail() {
     if (!id) return;
     setLoading(true);
     try {
-      const [portfolioRes, assetsRes, summaryRes, recsRes, summariesRes, profitCurveRes] = await Promise.all([
+      const [portfolioRes, assetsRes, summaryRes, summariesRes, profitCurveRes] = await Promise.all([
         portfolioApi.getById(id),
         assetApi.getByPortfolio(id),
         portfolioApi.getSummary(id),
-        recommendationApi.getByPortfolio(id),
         portfolioApi.getSubPortfolioSummaries(id),
         portfolioApi.getProfitCurve(id),
       ]);
@@ -63,7 +61,6 @@ export default function PortfolioDetail() {
       setPortfolio(portfolioRes.data.data);
       setAssets(assetsRes.data.data || []);
       setSummary(summaryRes.data.data);
-      setRecommendations(recsRes.data.data || []);
       setSubPortfolioSummaries(summariesRes.data.data || []);
       setProfitCurve(profitCurveRes.data.data || []);
     } catch (error) {
@@ -91,16 +88,6 @@ export default function PortfolioDetail() {
       loadData();
     } catch (error) {
       console.error('Failed to delete sub-portfolio', error);
-    }
-  };
-
-  const handleGenerateRecommendations = async () => {
-    if (!id) return;
-    try {
-      await recommendationApi.generate(id);
-      loadData();
-    } catch (error) {
-      console.error('Failed to generate recommendations', error);
     }
   };
 
@@ -356,27 +343,21 @@ export default function PortfolioDetail() {
 
       <div className="tabs">
         <button
-          className={`tab ${activeTab === 'overview' ? 'active' : ''}`}
-          onClick={() => setActiveTab('overview')}
-        >
-          概览
-        </button>
-        <button
           className={`tab ${activeTab === 'assets' ? 'active' : ''}`}
           onClick={() => setActiveTab('assets')}
         >
           资产 ({portfolio.assetCount || assets.length})
         </button>
         <button
-          className={`tab ${activeTab === 'recommendations' ? 'active' : ''}`}
-          onClick={() => setActiveTab('recommendations')}
+          className={`tab ${activeTab === 'chart' ? 'active' : ''}`}
+          onClick={() => setActiveTab('chart')}
         >
-          推荐操作
+          图表
         </button>
       </div>
 
       <div className="tab-content">
-        {activeTab === 'overview' && (
+        {activeTab === 'chart' && (
           <div className="overview-section">
             {/* 玫瑰图：显示子组合和直接资产的分布 */}
             {(() => {
@@ -791,41 +772,6 @@ export default function PortfolioDetail() {
                 </table>
               )}
             </div>
-          </div>
-        )}
-
-        {activeTab === 'recommendations' && (
-          <div className="recommendations-section">
-            <div className="section-header">
-              <h3>推荐操作</h3>
-              <button className="btn btn-secondary" onClick={handleGenerateRecommendations}>
-                <RefreshCw size={16} /> 重新生成
-              </button>
-            </div>
-
-            {recommendations.length === 0 ? (
-              <div className="empty-state">
-                <p>暂无推荐操作</p>
-                <p className="hint">设置目标配置后，系统将根据当前持仓偏离度生成建议</p>
-              </div>
-            ) : (
-              <div className="recommendations-list">
-                {recommendations.map((rec) => (
-                  <div key={rec.id} className={`recommendation-card ${rec.action.toLowerCase()}`}>
-                    <div className="rec-header">
-                      <span className={`action-badge ${rec.action.toLowerCase()}`}>
-                        {rec.action === 'BUY' ? '买入' : '卖出'}
-                      </span>
-                      <span className="asset-name">{rec.asset?.name || rec.assetId}</span>
-                    </div>
-                    <div className="rec-detail">
-                      <span>建议数量: {rec.suggestedQuantity}</span>
-                    </div>
-                    <div className="rec-reason">{rec.reason}</div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
       </div>
