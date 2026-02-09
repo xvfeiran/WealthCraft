@@ -26,7 +26,18 @@
       "Bash(/home/faelan/code/WealthCraft/web/src/App.css <<'EOF'\n\n/* Readonly input for asset market display */\n.readonly-input {\n  background: #f5f5f5;\n  color: #666;\n  cursor: not-allowed;\n  border: 1px solid #ddd;\n}\nEOF)",
       "Bash(python3:*)",
       "Bash(__NEW_LINE_0f0b29054116ddc3__ python3 <<'EOF'\nimport json\nwith open\\('/tmp/nasdaq_etf.json'\\) as f:\n    data = json.load\\(f\\)\n\nrows = data.get\\('data', {}\\).get\\('data', {}\\).get\\('rows', []\\)\nprint\\(f'ETF总数: {len\\(rows\\)}'\\)\n\n# 搜索TLT\nfor r in rows:\n    if r.get\\('symbol'\\) == 'TLT':\n        print\\(f'\\\\n找到TLT: {r.get\\(\"symbol\"\\)} - {r.get\\(\"companyName\"\\)}'\\)\n        break\nelse:\n    print\\('\\\\n未找到TLT'\\)\n    \n# 搜索Treasury相关\ntreasury = [r for r in rows if 'Treasury' in r.get\\('companyName', ''\\)]\nprint\\(f'Treasury相关ETF: {len\\(treasury\\)}只'\\)\nfor t in treasury[:10]:\n    print\\(f'  {t.get\\(\"symbol\"\\)}: {t.get\\(\"companyName\"\\)}'\\)\nEOF)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "Bash(npx prisma migrate:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd //c \"taskkill /PID 11408 /F\")",
+      "Bash(git checkout:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nrefactor: resolve asset prices from MarketInstrument at query time\n\nInstead of copying MarketInstrument.lastPrice to Asset.currentPrice via\nsync jobs, resolve prices directly from MarketInstrument when querying.\nThis eliminates data redundancy and ensures prices are always up-to-date.\n\n- Add priceResolver utility for batch price resolution \\(avoids N+1\\)\n- Update assetService, portfolioService, recommendationService to use resolved prices\n- Remove syncAllAssetPrices\\(\\), updatePrice\\(\\), and related sync cron jobs\n- Remove POST /api/market/sync endpoint\n- Asset.currentPrice retained as fallback for assets without market data\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(gh pr create --title \"refactor: resolve asset prices from MarketInstrument at query time\" --body \"$\\(cat <<''EOF''\n## Summary\n\n- **消除数据冗余**: 不再将 `MarketInstrument.lastPrice` 复制到 `Asset.currentPrice`，改为查询时直接引用\n- **新增 `priceResolver` 工具函数**: 按 `symbol+market` 批量匹配 MarketInstrument，一次查询解析所有资产价格，避免 N+1\n- **删除冗余同步机制**: 移除 `syncAllAssetPrices\\(\\)`、`updatePrice\\(\\)`、`POST /api/market/sync` 路由、9AM/3:30PM cron job\n\n## 架构变化\n\n```\n之前: MarketInstrument.lastPrice → \\(定时复制\\) → Asset.currentPrice → 前端显示\n现在: MarketInstrument.lastPrice → \\(查询时直接读取\\) → 前端显示\n                                    Asset.currentPrice 仅作为无市场数据时的回退值\n```\n\n## Test plan\n\n- [ ] `npx tsc --noEmit` 类型检查通过\n- [ ] 启动后端，访问 portfolio detail 页面确认资产现价显示为 MarketInstrument 中的最新值\n- [ ] 确认无 MarketInstrument 数据的资产仍显示 Asset.currentPrice 作为回退\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\nEOF\n\\)\")",
+      "Bash(where:*)"
     ]
   }
 }

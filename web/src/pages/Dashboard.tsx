@@ -1,6 +1,6 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, TrendingUp, TrendingDown, Wallet, Settings } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, Wallet, ChevronDown } from 'lucide-react';
 import { portfolioApi } from '../api/client';
 import type { Portfolio, PortfolioSummary } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -10,10 +10,22 @@ export default function Dashboard() {
   const [summaries, setSummaries] = useState<Record<string, PortfolioSummary>>({});
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuth();
 
   useEffect(() => {
     loadPortfolios();
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const loadPortfolios = async () => {
@@ -80,15 +92,29 @@ export default function Dashboard() {
       <header className="dashboard-header">
         <div className="header-left">
           <h1>Fin-Pilot</h1>
-          <span className="user-email">{user?.email}</span>
         </div>
-        <div className="header-right">
-          <Link to="/channels" className="btn btn-secondary">
-            <Settings size={16} /> 渠道管理
-          </Link>
-          <button className="btn btn-secondary" onClick={logout}>
-            退出登录
+        <div className="header-right" ref={dropdownRef}>
+          <button
+            className="user-menu-btn"
+            onClick={() => setShowDropdown(!showDropdown)}
+          >
+            {user?.email}
+            <ChevronDown size={16} />
           </button>
+          {showDropdown && (
+            <div className="user-dropdown">
+              <div className="dropdown-header">
+                <span className="dropdown-email">{user?.email}</span>
+              </div>
+              <div className="dropdown-divider"></div>
+              <Link to="/channels" className="dropdown-item" onClick={() => setShowDropdown(false)}>
+                渠道管理
+              </Link>
+              <button className="dropdown-item dropdown-logout" onClick={logout}>
+                退出登录
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
