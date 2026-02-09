@@ -6,10 +6,8 @@
  */
 
 export { AddAssetModal } from './AddAssetModal';
-
-// TODO: Extract remaining modals from PortfolioDetail.tsx
-// export { SubPortfolioModal } from './SubPortfolioModal';
-// export { TransactionModal } from './TransactionModal';
-// export { AssetDetailModal } from './AssetDetailModal';
-// export { MoveAssetModal } from './MoveAssetModal';
-// export { EditAssetModal } from './EditAssetModal';
+export { SubPortfolioModal } from './SubPortfolioModal';
+export { TransactionModal } from './TransactionModal';
+export { AssetDetailModal } from './AssetDetailModal';
+export { MoveAssetModal } from './MoveAssetModal';
+export { EditAssetModal } from './EditAssetModal';
