@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 import { PortfolioSummary, PortfolioRuleType, ContributionPeriod } from '../types';
 import { getExchangeRate, convertCurrency } from '../utils/currency';
+import { resolveMarketPrices } from '../utils/priceResolver';
 import type { SubPortfolio as PrismaSubPortfolio, Asset as PrismaAsset } from '@prisma/client';
 
 export class PortfolioService {
@@ -83,7 +84,22 @@ export class PortfolioService {
       throw new AppError('Portfolio not found', 404);
     }
 
-    return portfolio;
+    // 注入市场价格到所有资产
+    const priceMap = await resolveMarketPrices(portfolio.assets);
+
+    const enrichAsset = (asset: typeof portfolio.assets[number]) => {
+      const currentPrice = priceMap.get(asset.id) ?? asset.currentPrice;
+      return { ...asset, currentPrice };
+    };
+
+    return {
+      ...portfolio,
+      assets: portfolio.assets.map(enrichAsset),
+      subPortfolios: portfolio.subPortfolios.map((sp) => ({
+        ...sp,
+        assets: sp.assets.map(enrichAsset),
+      })),
+    };
   }
 
   async update(
@@ -142,6 +158,8 @@ export class PortfolioService {
       throw new AppError('Portfolio not found', 404);
     }
 
+    const priceMap = await resolveMarketPrices(portfolio.assets);
+
     let totalValue = 0;
     let totalCost = 0;
     const allocationMap: Record<string, number> = {};
@@ -149,8 +167,9 @@ export class PortfolioService {
     // 计算所有资产（包括直接资产和子组合内的资产）
     // portfolio.assets 已经包含了所有关联的资产
     for (const asset of portfolio.assets) {
+      const currentPrice = priceMap.get(asset.id) ?? asset.currentPrice;
       const rate = await getExchangeRate(asset.currency, portfolio.baseCurrency);
-      const assetValue = convertCurrency(asset.quantity * asset.currentPrice, rate);
+      const assetValue = convertCurrency(asset.quantity * currentPrice, rate);
       const assetCost = convertCurrency(asset.quantity * asset.costPrice, rate);
 
       totalValue += assetValue;
@@ -201,11 +220,15 @@ export class PortfolioService {
       throw new AppError('Portfolio not found', 404);
     }
 
+    // 批量解析所有资产价格（portfolio.assets 包含全部资产）
+    const priceMap = await resolveMarketPrices(portfolio.assets);
+
     // 计算组合总价值（用于计算占比）
     let totalValue = 0;
     for (const asset of portfolio.assets) {
+      const currentPrice = priceMap.get(asset.id) ?? asset.currentPrice;
       const rate = await getExchangeRate(asset.currency, portfolio.baseCurrency);
-      const assetValue = convertCurrency(asset.quantity * asset.currentPrice, rate);
+      const assetValue = convertCurrency(asset.quantity * currentPrice, rate);
       totalValue += assetValue;
     }
 
@@ -217,8 +240,9 @@ export class PortfolioService {
       let spTotalCost = 0;
 
       for (const asset of subPortfolio.assets) {
+        const currentPrice = priceMap.get(asset.id) ?? asset.currentPrice;
         const rate = await getExchangeRate(asset.currency, portfolio.baseCurrency);
-        const assetValue = convertCurrency(asset.quantity * asset.currentPrice, rate);
+        const assetValue = convertCurrency(asset.quantity * currentPrice, rate);
         const assetCost = convertCurrency(asset.quantity * asset.costPrice, rate);
 
         spTotalValue += assetValue;

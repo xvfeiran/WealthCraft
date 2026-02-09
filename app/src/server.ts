@@ -3,7 +3,6 @@ import { config } from './config';
 import { logger } from './utils/logger';
 import { prisma } from './lib/prisma';
 import cron from 'node-cron';
-import { marketDataService } from './services/marketDataService';
 import { instrumentSyncService } from './services/instrumentSyncService';
 import { exchangeRateService } from './services/exchangeRateService';
 
@@ -50,18 +49,6 @@ async function main() {
       } catch (err) {
         logger.error('Scheduled sync failed', err);
       }
-    });
-
-    // Schedule daily price sync at 9:00 AM (market open)
-    cron.schedule('0 9 * * 1-5', async () => {
-      logger.info('Running scheduled price sync');
-      await marketDataService.syncAllAssetPrices();
-    });
-
-    // Schedule price sync at 3:30 PM (near market close)
-    cron.schedule('30 15 * * 1-5', async () => {
-      logger.info('Running scheduled price sync');
-      await marketDataService.syncAllAssetPrices();
     });
 
     // Schedule daily exchange rate sync at 8:00 AM (after ChinaMoney publishes)

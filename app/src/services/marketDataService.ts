@@ -1,8 +1,6 @@
-import { prisma } from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { proxiedFetch } from '../utils/httpClient';
 import { MarketStock } from '../types';
-import { assetService } from './assetService';
 
 // US交易所列表
 const US_EXCHANGES = ['NASDAQ', 'NYSE', 'AMEX'] as const;
@@ -128,64 +126,6 @@ export class MarketDataService {
     return results.slice(0, 40);
   }
 
-  // Sync prices for all assets in database
-  async syncAllAssetPrices(): Promise<{ updated: number; failed: number }> {
-    let updated = 0;
-    let failed = 0;
-
-    try {
-      // Get all assets that are set to SYNC
-      const assets = await prisma.asset.findMany({
-        where: { source: 'SYNC' },
-      });
-
-      // Group by market
-      const usMarkets = ['NASDAQ', 'NYSE', 'AMEX', 'US_ETF'];
-      const cnMarkets = ['SSE', 'SSE_FUND', 'SSE_BOND'];
-      const usAssets = assets.filter((a) => usMarkets.includes(a.market));
-      const cnAssets = assets.filter((a) => cnMarkets.includes(a.market));
-
-      // Fetch market data from all US exchanges
-      const usStocks = await this.fetchAllUSStocks();
-      const cnStocks = await this.fetchCNStocks();
-
-      // Create lookup maps (symbol -> stock with market info)
-      const usMap = new Map(usStocks.map((s) => [s.symbol, s]));
-      const cnMap = new Map(cnStocks.map((s) => [s.symbol, s]));
-
-      // Update US assets
-      for (const asset of usAssets) {
-        const marketData = usMap.get(asset.symbol);
-        if (marketData) {
-          try {
-            await assetService.updatePrice(asset.id, marketData.price, marketData.market);
-            updated++;
-          } catch (e) {
-            failed++;
-          }
-        }
-      }
-
-      // Update CN assets
-      for (const asset of cnAssets) {
-        const marketData = cnMap.get(asset.symbol);
-        if (marketData) {
-          try {
-            await assetService.updatePrice(asset.id, marketData.price, 'SSE');
-            updated++;
-          } catch (e) {
-            failed++;
-          }
-        }
-      }
-
-      logger.info(`Sync completed: ${updated} updated, ${failed} failed`);
-    } catch (error) {
-      logger.error('Sync failed', error);
-    }
-
-    return { updated, failed };
-  }
 }
 
 export const marketDataService = new MarketDataService();
