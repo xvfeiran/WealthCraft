@@ -1,18 +1,25 @@
-import { prisma } from '../lib/prisma';
-import { logger } from '../utils/logger';
-import { proxiedFetch } from '../utils/httpClient';
-
 /**
  * Binance Sync Service
  *
- * IMPORTANT: Binance API is geo-blocked in China. To use this service, you MUST configure a proxy:
- * 1. Set PROXY_URL in .env file (e.g., PROXY_URL=http://127.0.0.1:1080)
- * 2. Or use any HTTP/SOCKS5 proxy
+ * ⚠️ TEMPORARILY DISABLED
  *
- * Without a proxy, you will receive HTTP 451 "Service unavailable from a restricted location"
+ * This service is not currently integrated into the main sync flow due to:
+ * 1. Geo-blocking in China (requires proxy configuration)
+ * 2. Lower priority compared to other data sources
  *
- * See doc/external-apis/binance-api.md for more details
+ * To enable:
+ * 1. Configure PROXY_URL in app/.env file
+ * 2. Import and integrate in instrumentSyncService.ts
+ * 3. Add 'BINANCE' to valid markets in instrumentController.ts
+ *
+ * See doc/external-apis/binance-api.md for details
+ *
+ * TODO: Re-enable when proxy configuration is standardized or when needed
  */
+
+import { prisma } from '../lib/prisma';
+import { logger } from '../utils/logger';
+import { proxiedFetch } from '../utils/httpClient';
 
 interface BinanceTicker {
   symbol: string;
